@@ -1,0 +1,3949 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#020617" />
+<title>入入（にゅうにゅう）｜Tスピン対戦テトリス</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+
+  html, body { margin: 0; padding: 0; min-height: 100%; }
+
+  body {
+    background-color: #020617;
+    background-image: radial-gradient(ellipse at top, #1e1b4b 0%, #020617 60%);
+    color: #f1f5f9;
+    font-family: "Hiragino Sans", "Yu Gothic UI", "Noto Sans JP", system-ui, -apple-system, sans-serif;
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior: none;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+    min-height: 100dvh;
+  }
+  input, textarea { -webkit-user-select: text; user-select: text; }
+  button { font-family: inherit; }
+
+  /* scrollbars in the arena palette */
+  * { scrollbar-width: thin; scrollbar-color: #7c3aed #0f172a; }
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: #0f172a; border-radius: 8px; }
+  ::-webkit-scrollbar-thumb { background: linear-gradient(180deg, #22d3ee, #7c3aed, #d946ef); border-radius: 8px; }
+  ::-webkit-scrollbar-thumb:hover { background: linear-gradient(180deg, #67e8f9, #a78bfa, #f0abfc); }
+
+  #app {
+    min-height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 14px 12px 28px;
+    gap: 14px;
+  }
+
+  /* ---------------- top bar ---------------- */
+  .topbar {
+    width: 100%;
+    max-width: 1180px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .logo { display: flex; align-items: baseline; gap: 8px; }
+  .logo-name { font-size: 22px; font-weight: 900; letter-spacing: .1em; color: #fff; line-height: 1; }
+  .logo-sub { font-size: 10px; font-weight: 700; letter-spacing: .08em; color: #94a3b8; }
+  .top-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+  .tabs {
+    display: flex;
+    gap: 3px;
+    padding: 3px;
+    border-radius: 999px;
+    background: rgba(15, 23, 42, .8);
+    border: 1px solid rgba(255, 255, 255, .1);
+  }
+  .tab {
+    border: 0;
+    background: transparent;
+    color: #cbd5e1;
+    font-size: 12px;
+    font-weight: 800;
+    padding: 7px 14px;
+    border-radius: 999px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background .15s, color .15s;
+  }
+  .tab.active {
+    background: linear-gradient(135deg, #8b5cf6, #d946ef);
+    color: #fff;
+    box-shadow: 0 4px 18px rgba(217, 70, 239, .35);
+  }
+
+  .pill {
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, .1);
+    background: #0f172a;
+    padding: 6px 12px;
+    font-size: 12px;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  .pill.best {
+    border-color: rgba(251, 191, 36, .3);
+    background: rgba(251, 191, 36, .1);
+    color: #fde68a;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  .pill.best b { font-weight: 900; }
+
+  /* ---------------- layout ---------------- */
+  .wrap {
+    width: 100%;
+    max-width: 1180px;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    gap: 22px;
+    flex-wrap: wrap;
+  }
+  .game-area {
+    width: 100%;
+    max-width: 560px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .game-top {
+    width: 100%;
+    max-width: 560px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 4px;
+  }
+  .chip {
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, .1);
+    background: rgba(15, 23, 42, .8);
+    color: #e2e8f0;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 6px 12px;
+    cursor: pointer;
+    transition: border-color .15s, color .15s, background .15s;
+  }
+  .chip:hover { border-color: rgba(167, 139, 250, .5); color: #fff; }
+  .chip.on {
+    border-color: rgba(34, 211, 238, .4);
+    background: rgba(34, 211, 238, .1);
+    color: #a5f3fc;
+  }
+
+  body.battle .game-area,
+  body.battle .game-top { max-width: 900px; }
+  /* 相手盤面の帯（狭い画面用）。広い画面では右レール（.side）に出す。 */
+  .opponent-strip { display: none; }
+  @media (max-width: 899px) {
+    body.battle .side { display: none !important; }
+    body.battle .opponent-strip {
+      display: flex;
+      gap: 10px;
+      width: 100%;
+      max-width: 420px;
+      justify-content: center;
+      overflow-x: auto;
+      padding: 4px 2px 6px;
+      scrollbar-width: thin;
+    }
+    body.battle .opponent-strip .opponent { flex: 0 0 58px; }
+    body.battle .opponent-strip .opponent-cv { border-radius: 5px; }
+    body.battle .opponent-strip .opponent-name { font-size: 9px; }
+    body.battle .opponent-strip .opponent-score { font-size: 7.5px; }
+  }
+  .play-row {
+    width: 100%;
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 8px;
+  }
+  body.lobby-mode .col { display: none !important; }
+  body.lobby-mode .side { display: none !important; }
+  body.lobby-mode .game-area, body.lobby-mode .game-top { max-width: 620px; }
+  body.lobby-mode .lobby-panel { max-width: 560px; }
+  body.lobby-mode .hint { display: none; }
+  @media (min-width: 640px) { .play-row { gap: 16px; } }
+
+  .col {
+    width: 68px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  @media (min-width: 640px) { .col { width: 128px; } }
+
+  .card {
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, .1);
+    background: rgba(15, 23, 42, .7);
+    padding: 8px;
+    text-align: center;
+  }
+  .stat { padding: 6px 8px; }
+  .stat .label {
+    margin: 0 0 2px;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: .16em;
+    color: #94a3b8;
+  }
+  .stat .value {
+    margin: 0;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 14px;
+    font-weight: 900;
+    font-variant-numeric: tabular-nums;
+  }
+  @media (min-width: 640px) {
+    .stat .label { font-size: 10px; }
+    .stat .value { font-size: 18px; }
+  }
+  .stat.accent .value { color: #f0abfc; }
+
+  .mini-label {
+    margin: 0 0 4px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .16em;
+    color: #94a3b8;
+  }
+  .preview { width: 56px; height: 56px; display: block; margin: 0 auto; }
+  .hold-card { transition: opacity .15s; }
+  .hold-card.spent { opacity: .6; }
+
+  .next-list { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .next-list canvas { width: 48px; height: 48px; display: block; }
+  @media (min-width: 640px) { .next-list canvas { width: 56px; height: 56px; } }
+
+  /* ---------------- board ---------------- */
+  .board-wrap {
+    position: relative;
+    flex-shrink: 0;
+    width: min(calc(100vw - 9.5rem), 40svh, 380px);
+    touch-action: none;
+  }
+  body.battle .board-wrap { width: min(calc(100vw - 10.2rem), 40svh, 320px); }
+  body.battle .col { width: 104px; }
+  @media (max-width: 900px) { body.battle .col { width: 68px; } }
+  #board {
+    display: block;
+    width: 100%;
+    height: auto;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, .1);
+    background: #070b14;
+    box-shadow: 0 0 50px rgba(124, 58, 237, .25);
+  }
+
+  .gauge {
+    position: absolute;
+    left: -12px;
+    top: 0;
+    height: 100%;
+    width: 6px;
+    border-radius: 4px;
+    background: rgba(30, 41, 59, .8);
+    overflow: hidden;
+  }
+  .gauge-fill {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    width: 100%;
+    height: 0;
+    background: linear-gradient(to top, #dc2626, #fb923c);
+    transition: height .15s;
+  }
+
+  .soft-pill {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 8px;
+    display: none;
+    justify-content: center;
+    pointer-events: none;
+  }
+  .soft-pill.show { display: flex; }
+  .soft-pill span {
+    border-radius: 999px;
+    background: rgba(34, 211, 238, .2);
+    color: #a5f3fc;
+    font-size: 10px;
+    font-weight: 900;
+    letter-spacing: .08em;
+    padding: 4px 12px;
+    backdrop-filter: blur(4px);
+  }
+
+  #popupLayer {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    z-index: 15;
+  }
+  .popup { text-align: center; animation: popup 1.5s ease-out forwards; }
+  .popup .title { margin: 0; font-size: 20px; font-weight: 900; letter-spacing: .04em; }
+  .popup .sub { margin: 4px 0 0; font-size: 11px; font-weight: 800; color: #fde68a; }
+  @media (min-width: 640px) { .popup .title { font-size: 26px; } .popup .sub { font-size: 13px; } }
+  .popup.spin .title { color: #f0abfc; filter: drop-shadow(0 0 12px rgba(232, 121, 249, .9)); }
+  .popup.clear .title { color: #fff; filter: drop-shadow(0 0 8px rgba(255, 255, 255, .6)); }
+  .popup.quad .title { color: #67e8f9; filter: drop-shadow(0 0 14px rgba(34, 211, 238, .9)); }
+  .popup.pc .title { color: #fde047; filter: drop-shadow(0 0 16px rgba(253, 224, 71, .95)); }
+
+  @keyframes popup {
+    0% { opacity: 0; transform: translateY(12px) scale(.85); }
+    15% { opacity: 1; transform: translateY(0) scale(1.08); }
+    30% { transform: translateY(0) scale(1); }
+    80% { opacity: 1; }
+    100% { opacity: 0; transform: translateY(-14px) scale(1); }
+  }
+
+  #countLayer {
+    position: absolute;
+    inset: 0;
+    z-index: 20;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    background: rgba(2, 6, 23, .5);
+  }
+  #countLayer.show { display: flex; }
+  .count-num {
+    font-size: 72px;
+    font-weight: 900;
+    color: #fff;
+    filter: drop-shadow(0 0 24px rgba(168, 85, 247, .9));
+    animation: countpop .65s ease-out forwards;
+  }
+  @keyframes countpop {
+    0% { opacity: 0; transform: scale(2.2); }
+    25% { opacity: 1; transform: scale(1); }
+    80% { opacity: 1; }
+    100% { opacity: .2; transform: scale(.9); }
+  }
+
+  #overLayer {
+    position: absolute;
+    inset: 0;
+    z-index: 10;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 16px;
+    text-align: center;
+    border-radius: 10px;
+    background: rgba(0, 0, 0, .75);
+    backdrop-filter: blur(2px);
+  }
+  #overLayer.show { display: flex; }
+  .over-title { margin: 0; font-size: 26px; font-weight: 900; letter-spacing: .12em; color: #f87171; }
+  .over-title.win { color: #fde047; letter-spacing: .06em; }
+  .over-title.lose { color: #f87171; letter-spacing: .06em; }
+  .over-detail { margin: 0; font-size: 12px; color: #cbd5e1; line-height: 1.6; }
+  .over-btn {
+    margin-top: 4px;
+    border: 0;
+    border-radius: 999px;
+    padding: 9px 22px;
+    font-size: 14px;
+    font-weight: 800;
+    color: #fff;
+    cursor: pointer;
+    background: linear-gradient(90deg, #8b5cf6, #d946ef);
+    box-shadow: 0 6px 20px rgba(217, 70, 239, .35);
+  }
+  .over-btn.ghost {
+    background: #1e293b;
+    box-shadow: none;
+    color: #e2e8f0;
+  }
+
+  /* ---------------- touch pad ---------------- */
+  .touchpad {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    width: 100%;
+    max-width: 460px;
+  }
+  @media (min-width: 1024px) { .touchpad { display: none; } }
+  .tbtn {
+    touch-action: none;
+    height: 56px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, .1);
+    background: #1e293b;
+    color: #fff;
+    font-size: 14px;
+    font-weight: 800;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, .35);
+    transition: transform .08s, background .08s;
+  }
+  .tbtn:active { background: #7c3aed; transform: scale(.95); }
+  .tbtn.accent {
+    border: 0;
+    background: linear-gradient(to bottom, #d946ef, #7c3aed);
+  }
+
+  .hint { margin: 0; max-width: 560px; text-align: center; font-size: 12px; color: #94a3b8; padding: 0 8px; line-height: 1.6; }
+  #hintKeys { display: none; }
+  @media (min-width: 1024px) { #hintKeys { display: block; } #hintTouch { display: none; } }
+
+  /* ---------------- battle side ---------------- */
+  .side { display: none; flex-direction: column; gap: 8px; width: 100%; max-width: 200px; flex: 0 0 200px; }
+  body.battle .side { display: flex; }
+  @media (min-width: 1024px) {
+    .wrap { flex-wrap: nowrap; }
+    .side { max-width: 210px; flex: 0 0 210px; }
+    .side .rules { display: none; }
+  }
+
+  .panel { text-align: left; padding: 10px 11px; border-radius: 13px; }
+  .panel-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .panel-title { margin: 0 0 6px; font-size: 11px; font-weight: 900; color: #f1f5f9; }
+
+  .rules { font-size: 9.5px; color: #94a3b8; line-height: 1.55; }
+  .rules ul { margin: 0; padding-left: 16px; }
+  .rules li { margin: 3px 0; }
+
+  /* toast for incoming / outgoing attacks */
+  .toast-layer {
+    position: fixed;
+    left: 50%;
+    top: 84px;
+    transform: translateX(-50%);
+    z-index: 40;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    align-items: center;
+    pointer-events: none;
+  }
+  .toast {
+    border-radius: 999px;
+    padding: 6px 14px;
+    font-size: 12px;
+    font-weight: 900;
+    letter-spacing: .04em;
+    background: rgba(217, 70, 239, .18);
+    border: 1px solid rgba(217, 70, 239, .45);
+    color: #f5d0fe;
+    animation: toastIn 1.6s ease-out forwards;
+    backdrop-filter: blur(4px);
+  }
+  .toast.in {
+    background: rgba(239, 68, 68, .18);
+    border-color: rgba(239, 68, 68, .5);
+    color: #fecaca;
+  }
+  @keyframes toastIn {
+    0% { opacity: 0; transform: translateY(-8px) scale(.9); }
+    12% { opacity: 1; transform: translateY(0) scale(1); }
+    75% { opacity: 1; }
+    100% { opacity: 0; transform: translateY(-10px); }
+  }
+
+  /* ---------------- modals ---------------- */
+  .modal {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    background: rgba(2, 6, 23, .85);
+    backdrop-filter: blur(4px);
+  }
+  .modal.open { display: flex; }
+  .modal-card {
+    width: 100%;
+    max-width: 440px;
+    max-height: 85dvh;
+    overflow-y: auto;
+    border-radius: 24px;
+    border: 1px solid rgba(196, 181, 253, .3);
+    background: linear-gradient(to bottom, #0f172a, #020617);
+    padding: 22px;
+    box-shadow: 0 0 80px rgba(124, 58, 237, .35);
+  }
+  .modal-kicker { margin: 0; text-align: center; font-size: 11px; font-weight: 900; letter-spacing: .1em; color: #f0abfc; }
+  .modal-title { margin: 4px 0 0; text-align: center; font-size: 22px; font-weight: 900; color: #fff; }
+  .modal-note {
+    margin: 10px 0 0;
+    border-radius: 10px;
+    background: rgba(251, 191, 36, .1);
+    padding: 8px 12px;
+    text-align: center;
+    font-size: 11px;
+    font-weight: 800;
+    color: #fcd34d;
+  }
+  .step-label { margin: 18px 0 8px; font-size: 11px; font-weight: 900; letter-spacing: .16em; color: #67e8f9; }
+  .step-label.pink { color: #f0abfc; }
+  .step-box {
+    border-radius: 16px;
+    border: 1px solid rgba(34, 211, 238, .25);
+    background: rgba(2, 6, 23, .6);
+    padding: 14px;
+  }
+  .step-box.pink { border-color: rgba(232, 121, 249, .25); }
+  .step-sub { margin: 10px 0 6px; padding-top: 10px; border-top: 1px solid rgba(255, 255, 255, .05); font-size: 10px; font-weight: 800; letter-spacing: .16em; color: #64748b; }
+
+  .glist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 9px; }
+  .glist li { display: flex; align-items: center; gap: 10px; }
+  .glist .icon {
+    width: 34px;
+    height: 34px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    background: #1e293b;
+    font-size: 16px;
+  }
+  .glist .lbl { margin: 0; font-size: 13px; font-weight: 800; color: #fff; }
+  .glist .desc { margin: 0; font-size: 11px; color: #94a3b8; line-height: 1.5; }
+
+  .keylist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 7px; }
+  .keylist li { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .keylist kbd {
+    flex-shrink: 0;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, .15);
+    background: #1e293b;
+    padding: 3px 9px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 11px;
+    font-weight: 800;
+    color: #a5f3fc;
+  }
+  .keylist .desc { font-size: 11px; color: #cbd5e1; text-align: right; }
+
+  .locked-box {
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, .1);
+    background: rgba(2, 6, 23, .4);
+    padding: 14px;
+    text-align: center;
+  }
+  .locked-box .t1 { margin: 0; font-size: 13px; font-weight: 800; color: #cbd5e1; }
+  .locked-box .t2 { margin: 4px 0 0; font-size: 11px; color: #64748b; }
+  .prog { margin: 10px auto 0; width: 160px; height: 8px; border-radius: 999px; background: #1e293b; overflow: hidden; }
+  .prog > div { height: 100%; width: 0; border-radius: 999px; background: linear-gradient(90deg, #22d3ee, #d946ef); transition: width .3s; }
+  .prog-label { margin: 6px 0 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; font-weight: 800; color: #67e8f9; }
+
+  .modal-foot { margin: 14px 0 0; text-align: center; font-size: 11px; line-height: 1.7; color: #94a3b8; }
+  .modal-btn {
+    margin-top: 16px;
+    width: 100%;
+    border: 0;
+    border-radius: 16px;
+    padding: 13px;
+    font-size: 16px;
+    font-weight: 900;
+    color: #fff;
+    cursor: pointer;
+    background: linear-gradient(90deg, #22d3ee, #8b5cf6 50%, #d946ef);
+    box-shadow: 0 8px 26px rgba(139, 92, 246, .35);
+  }
+  .modal-btn:active { transform: scale(.99); }
+
+  /* pause modal */
+  .pause-card { max-width: 340px; text-align: center; }
+  .pause-card .modal-title { font-size: 24px; }
+  .pause-actions { display: flex; flex-direction: column; gap: 8px; margin-top: 18px; }
+  .pause-actions button {
+    border: 0;
+    border-radius: 12px;
+    padding: 12px;
+    font-size: 14px;
+    font-weight: 800;
+    cursor: pointer;
+    color: #fff;
+    background: #1e293b;
+  }
+  .pause-actions button.primary { background: linear-gradient(90deg, #8b5cf6, #d946ef); }
+  .pause-actions button.ghost { color: #cbd5e1; }
+
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+  }
+
+  /* ==================== online room ==================== */
+  .lobby-panel {
+    width: min(100%, 420px);
+    display: none;
+    flex-direction: column;
+    align-items: center;
+  }
+  .lobby-loading { color: #94a3b8; font-size: 13px; padding: 40px 0; }
+  .lobby-card {
+    width: 100%;
+    border-radius: 20px;
+    border: 1px solid rgba(255, 255, 255, .1);
+    background: rgba(15, 23, 42, .7);
+    padding: 16px 18px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    box-shadow: 0 18px 44px rgba(2, 6, 23, .5);
+  }
+  .lobby-title { margin: 0; font-size: 18px; font-weight: 900; }
+  .lobby-sub { margin: 0; font-size: 11.5px; color: #94a3b8; text-align: center; }
+  .lobby-code {
+    margin: 2px 0 4px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 22px;
+    font-weight: 900;
+    letter-spacing: .28em;
+    color: #fff;
+  }
+  .lobby-actions { display: flex; gap: 6px; width: 100%; }
+  .lobby-btn {
+    flex: 1;
+    border: 0;
+    border-radius: 10px;
+    background: #1e293b;
+    color: #e2e8f0;
+    padding: 8px 6px;
+    font-size: 11.5px;
+    font-weight: 800;
+    font-family: inherit;
+    cursor: pointer;
+  }
+  .lobby-btn:hover { background: #334155; }
+  .lobby-btn.ghost { background: rgba(248, 113, 113, .15); color: #fca5a5; flex: 0 0 78px; }
+  .lobby-btn.ghost:hover { background: rgba(248, 113, 113, .25); }
+
+  .lobby-players-wrap {
+    width: 100%;
+    margin-top: 4px;
+    border-radius: 12px;
+    background: rgba(2, 6, 23, .55);
+    padding: 9px 10px;
+  }
+  .lobby-players-title {
+    margin: 0 0 6px;
+    font-size: 9.5px;
+    font-weight: 800;
+    letter-spacing: .16em;
+    color: #94a3b8;
+  }
+  .lobby-players { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; max-height: 208px; overflow-y: auto; }
+  .lobby-player {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    border-radius: 8px;
+    background: rgba(15, 23, 42, .8);
+    padding: 6px 9px;
+  }
+  .crown { font-size: 11px; }
+  .lobby-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 800; }
+  .you-tag { border-radius: 4px; background: #7c3aed; padding: 1px 5px; font-size: 8.5px; font-weight: 900; }
+  .lobby-status { border-radius: 4px; padding: 2px 7px; font-size: 8.5px; font-weight: 900; }
+  .lobby-status.wait { background: #334155; color: #e2e8f0; }
+  .lobby-status.alive { background: rgba(16, 185, 129, .85); color: #fff; }
+  .lobby-status.ko { background: rgba(239, 68, 68, .85); color: #fff; }
+  .lobby-status.win { background: #fbbf24; color: #0f172a; }
+
+  .lobby-start {
+    width: 100%;
+    margin-top: 4px;
+    border: 0;
+    border-radius: 12px;
+    background: linear-gradient(90deg, #d946ef, #7c3aed);
+    color: #fff;
+    padding: 12px;
+    font-size: 15px;
+    font-weight: 900;
+    font-family: inherit;
+    cursor: pointer;
+    box-shadow: 0 8px 24px rgba(217, 70, 239, .3);
+  }
+  .lobby-start:disabled { opacity: .4; cursor: not-allowed; box-shadow: none; }
+  .lobby-hint { margin: 0; font-size: 11px; color: #fcd34d; text-align: center; }
+  .lobby-rules {
+    width: 100%;
+    margin-top: 4px;
+    border-radius: 12px;
+    background: rgba(2, 6, 23, .55);
+    padding: 9px 12px;
+    font-size: 10px;
+    line-height: 1.65;
+    color: #94a3b8;
+  }
+  .lobby-rules > p { margin: 0 0 3px; font-size: 10.5px; font-weight: 900; color: #cbd5e1; }
+  .lobby-rules ul { margin: 0; padding-left: 15px; }
+
+  .opponent-count { font-size: 10px; font-weight: 800; color: #94a3b8; }
+  .opponent-list { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-top: 5px; max-height: 250px; overflow-y: auto; }
+  .opponent { display: flex; flex-direction: column; align-items: center; gap: 2px; position: relative; }
+  .opponent.dead { opacity: .4; filter: grayscale(1); }
+  .opponent-cv { width: 100%; max-width: 62px; height: auto; border-radius: 4px; border: 1px solid rgba(255, 255, 255, .1); }
+  .opponent-ko {
+    position: absolute;
+    top: 38%;
+    font-size: 12px;
+    font-weight: 900;
+    color: #fca5a5;
+  }
+  .opponent-name { margin: 0; width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: center; font-size: 10.5px; font-weight: 800; }
+  .opponent-score { margin: 0; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 8.5px; color: #94a3b8; }
+
+  .server-state {
+    display: none;
+    margin: 10px 0 0;
+    border-radius: 9px;
+    padding: 8px 10px;
+    font-size: 10.5px;
+    line-height: 1.6;
+    background: rgba(239, 68, 68, .12);
+    border: 1px solid rgba(239, 68, 68, .3);
+    color: #fca5a5;
+    text-align: center;
+  }
+  .server-state.ok { background: rgba(16, 185, 129, .12); border-color: rgba(16, 185, 129, .3); color: #6ee7b7; }
+
+  /* ==================== home screen ==================== */
+  #homeView { width: 100%; display: flex; justify-content: center; }
+  .home { width: 100%; max-width: 560px; padding: 0 0 24px; }
+  .home-inner { display: flex; flex-direction: column; align-items: center; }
+
+  .kicker {
+    margin: 0;
+    border-radius: 999px;
+    border: 1px solid rgba(232, 121, 249, .3);
+    background: rgba(232, 121, 249, .1);
+    padding: 4px 14px;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: .22em;
+    color: #f5d0fe;
+    white-space: nowrap;
+  }
+  .hero {
+    margin: 10px 0 0;
+    font-size: clamp(40px, 12vw, 60px);
+    line-height: 1;
+    font-weight: 900;
+    letter-spacing: .1em;
+    background: linear-gradient(90deg, #67e8f9, #c4b5fd 55%, #e879f9);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    text-align: center;
+  }
+  .hero-sub {
+    margin: 4px 0 0;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: .22em;
+    color: #c4b5fd;
+  }
+  .hero-desc {
+    margin: 10px 0 0;
+    max-width: 460px;
+    text-align: center;
+    font-size: 11.5px;
+    line-height: 1.7;
+    color: #94a3b8;
+  }
+
+  .panel-home {
+    margin-top: 16px;
+    width: 100%;
+    border-radius: 20px;
+    border: 1px solid rgba(255, 255, 255, .1);
+    background: rgba(15, 23, 42, .7);
+    padding: 14px;
+    box-shadow: 0 18px 44px rgba(2, 6, 23, .55);
+  }
+  @media (min-width: 560px) { .panel-home { padding: 18px; } }
+
+  .field-label { display: block; font-size: 11px; font-weight: 800; color: #cbd5e1; }
+  .text-input {
+    margin-top: 5px;
+    width: 100%;
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, .1);
+    background: #020617;
+    padding: 9px 12px;
+    font-size: 15px;
+    font-family: inherit;
+    color: #fff;
+    outline: none;
+  }
+  .text-input:focus { border-color: #8b5cf6; }
+
+  .mode-grid { margin-top: 10px; display: grid; gap: 8px; grid-template-columns: 1fr 1fr; }
+  .mode-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1px;
+    border-radius: 14px;
+    padding: 12px 8px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: filter .15s, transform .1s, background .15s;
+  }
+  .mode-btn:active { transform: scale(.985); }
+  .mode-btn.solo {
+    border: 1px solid rgba(34, 211, 238, .3);
+    background: rgba(34, 211, 238, .1);
+    color: #a5f3fc;
+  }
+  .mode-btn.solo:hover { background: rgba(34, 211, 238, .18); }
+  .mode-btn.cpu {
+    border: 0;
+    background: linear-gradient(135deg, #8b5cf6, #d946ef);
+    color: #fff;
+    box-shadow: 0 8px 22px rgba(139, 92, 246, .3);
+  }
+  .mode-btn.cpu:hover { filter: brightness(1.1); }
+  .mode-icon { font-size: 19px; line-height: 1.2; }
+  .mode-name { font-size: 14px; font-weight: 900; }
+  .mode-desc { font-size: 9.5px; opacity: .85; line-height: 1.3; }
+
+  .join-box {
+    margin-top: 8px;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, .1);
+    background: rgba(2, 6, 23, .5);
+    padding: 9px 10px;
+  }
+  .join-title { margin: 0; font-size: 10.5px; font-weight: 800; color: #94a3b8; }
+  .join-row { margin-top: 6px; display: flex; gap: 6px; }
+  .code-input {
+    min-width: 0;
+    flex: 1;
+    border-radius: 9px;
+    border: 1px solid rgba(255, 255, 255, .1);
+    background: #020617;
+    padding: 8px 11px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 14px;
+    letter-spacing: .22em;
+    color: #fff;
+    outline: none;
+    text-transform: uppercase;
+  }
+  .code-input:focus { border-color: #d946ef; }
+  .join-btn {
+    flex-shrink: 0;
+    border: 0;
+    border-radius: 9px;
+    background: #f1f5f9;
+    color: #0f172a;
+    padding: 0 16px;
+    font-size: 13px;
+    font-weight: 900;
+    cursor: pointer;
+  }
+  .join-btn:hover { background: #fff; }
+  .home-error {
+    display: none;
+    margin: 9px 0 0;
+    text-align: center;
+    font-size: 11px;
+    line-height: 1.6;
+    color: #f87171;
+  }
+
+  /* collapsible extras keep the menu short */
+  .features-fold {
+    margin-top: 12px;
+    width: 100%;
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, .1);
+    background: rgba(15, 23, 42, .4);
+  }
+  .features-fold > summary {
+    padding: 10px 14px;
+    font-size: 11px;
+    font-weight: 800;
+    color: #94a3b8;
+    cursor: pointer;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .features-fold > summary::-webkit-details-marker { display: none; }
+  .features-fold > summary::after { content: "▾"; font-size: 10px; transition: transform .2s; }
+  .features-fold[open] > summary::after { transform: rotate(180deg); }
+  .features-fold[open] > summary { border-bottom: 1px solid rgba(255, 255, 255, .06); color: #cbd5e1; }
+
+  .features { padding: 10px; display: grid; gap: 6px; }
+  @media (min-width: 520px) { .features { grid-template-columns: 1fr 1fr; } }
+  .feature {
+    border-radius: 10px;
+    border: 1px solid rgba(255, 255, 255, .07);
+    background: rgba(2, 6, 23, .45);
+    padding: 8px 10px;
+  }
+  .feature-title { margin: 0; font-size: 11px; font-weight: 900; color: #f5d0fe; }
+  .feature-desc { margin: 3px 0 0; font-size: 10px; line-height: 1.6; color: #94a3b8; }
+
+  .howto { padding: 0 12px 12px; font-size: 10.5px; color: #cbd5e1; }
+  .howto-title { margin: 6px 0 4px; font-size: 11px; font-weight: 900; color: #f1f5f9; }
+  .howto ol { margin: 0; padding-left: 16px; color: #94a3b8; }
+  .howto li { margin: 2px 0; line-height: 1.6; }
+
+  /* game view shell */
+  #gameView { width: 100%; display: none; flex-direction: column; align-items: center; gap: 14px; }
+  .game-bar {
+    width: 100%;
+    max-width: 1180px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .game-bar-left { display: flex; align-items: center; gap: 8px; }
+  .home-chip {
+    border-radius: 999px;
+    border: 1px solid rgba(255, 255, 255, .1);
+    background: rgba(15, 23, 42, .8);
+    color: #cbd5e1;
+    font-size: 12px;
+    font-weight: 800;
+    padding: 6px 12px;
+    cursor: pointer;
+  }
+  .home-chip:hover { color: #fff; border-color: rgba(167, 139, 250, .5); }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ======================== HOME ======================== -->
+  <div id="homeView"></div>
+
+  <!-- ======================== GAME ======================== -->
+  <div id="gameView">
+    <div class="game-bar">
+      <div class="game-bar-left">
+        <button class="home-chip" id="btnHome">← ホーム</button>
+        <div class="logo">
+          <span class="logo-name">入入</span>
+          <span class="logo-sub">にゅうにゅう</span>
+        </div>
+      </div>
+      <div class="top-right">
+        <span class="pill" id="modePill">ソロ</span>
+        <span class="pill best">BEST <b id="bestVal">0</b></span>
+      </div>
+    </div>
+
+    <section class="game-area">
+      <div class="game-top">
+        <button class="chip" id="btnHelp">？ 操作説明</button>
+        <button class="chip on" id="btnSound">🔊 音 ON</button>
+      </div>
+
+      <div class="play-row">
+        <aside class="col">
+          <div class="card hold-card" id="holdCard">
+            <p class="mini-label">HOLD</p>
+            <canvas id="holdCv" class="preview" width="56" height="56"></canvas>
+          </div>
+          <div class="card stat"><p class="label">SCORE</p><p class="value" id="hudScore">0</p></div>
+          <div class="card stat"><p class="label">LINES</p><p class="value" id="hudLines">0</p></div>
+          <div class="card stat"><p class="label">LEVEL</p><p class="value" id="hudLevel">1</p></div>
+        </aside>
+
+        <div class="lobby-panel" id="lobbyPanel" style="display:none"></div>
+
+        <div class="board-wrap" id="boardWrap">
+          <canvas id="board" width="300" height="600" aria-label="プレイフィールド"></canvas>
+          <div class="gauge" aria-hidden="true"><div class="gauge-fill" id="gaugeFill"></div></div>
+          <div class="soft-pill" id="softPill"><span>▼ ソフトドロップ中（離すと停止）</span></div>
+          <div id="popupLayer" aria-hidden="true"></div>
+          <div id="countLayer" aria-hidden="true"><span class="count-num" id="countNum">3</span></div>
+          <div id="overLayer"></div>
+        </div>
+
+        <aside class="col">
+          <div class="card">
+            <p class="mini-label">NEXT</p>
+            <div class="next-list" id="nextList"></div>
+          </div>
+          <div class="card stat accent"><p class="label">ATTACK</p><p class="value" id="hudAttack">0</p></div>
+          <div class="card stat"><p class="label">B2B</p><p class="value" id="hudB2b">x0</p></div>
+          <div class="card stat"><p class="label">COMBO</p><p class="value" id="hudCombo">0</p></div>
+        </aside>
+    <aside class="side" id="battleSide">
+      <div class="card panel" id="opponentPanel" style="display:none">
+        <div class="panel-head">
+          <p class="panel-title" style="margin:0">⚔️ 対戦相手</p>
+          <span class="opponent-count" id="opponentCount"></span>
+        </div>
+        <div class="opponent-list" id="opponentList"></div>
+      </div>
+
+      <div class="card panel rules">
+        <p class="panel-title">ルール</p>
+        <ul>
+          <li>ライン消去で相手に攻撃ラインが届きます（自分の受けるガベージは相殺されます）</li>
+          <li>Tスピン・Tスピンミニ・テトリス・B2B・コンボで攻撃力アップ</li>
+          <li>最後まで生き残った人の勝ち（15秒通信が無いと脱落）</li>
+        </ul>
+      </div>
+    </aside>
+      </div>
+
+      <div class="opponent-strip" id="opponentStrip" aria-label="対戦相手"></div>
+
+      <div class="touchpad" id="touchpad">
+        <button class="tbtn" data-btn="L" aria-label="左移動">←</button>
+        <button class="tbtn" data-btn="D" aria-label="ソフトドロップ">↓ ソフト</button>
+        <button class="tbtn" data-btn="R" aria-label="右移動">→</button>
+        <button class="tbtn" data-btn="180" aria-label="180度回転">180°</button>
+        <button class="tbtn" data-btn="HOLD" aria-label="ホールド">HOLD</button>
+        <button class="tbtn" data-btn="CCW" aria-label="左回転">⟲ 左回転</button>
+        <button class="tbtn" data-btn="CW" aria-label="右回転">⟳ 右回転</button>
+        <button class="tbtn accent" data-btn="HARD" aria-label="即落下">⚡ DROP</button>
+      </div>
+
+      <p class="hint" id="hintKeys"></p>
+      <p class="hint" id="hintTouch"></p>
+    </section>
+
+  </div>
+</div>
+
+<div class="toast-layer" id="toastLayer" aria-live="polite"></div>
+
+<!-- Tutorial / help -->
+<div class="modal" id="tutorialModal" role="dialog" aria-modal="true" aria-labelledby="tutTitle">
+  <div class="modal-card">
+    <p class="modal-kicker">入入（にゅうにゅう）</p>
+    <h2 class="modal-title" id="tutTitle">操作説明</h2>
+    <p class="modal-note" id="tutNote" style="display:none">対戦中でも説明はいつでも開けます。さっと確認して戻ろう！</p>
+
+    <p class="step-label">STEP 1 ｜ まずはこの3つだけ</p>
+    <div class="step-box" id="basicBox"></div>
+
+    <p class="step-label pink" id="advLabel">STEP 2 ｜ 応用操作</p>
+    <div id="advBox"></div>
+
+    <p class="modal-foot">
+      落下中は横移動できません。ソフトドロップは押しっぱなしの間だけ効きます。<br />
+      この説明は「？ 操作説明」ボタンでいつでも開けます。
+    </p>
+
+    <button class="modal-btn" id="tutStart">わかった！はじめる</button>
+  </div>
+</div>
+
+<!-- Pause -->
+<div class="modal" id="pauseModal" role="dialog" aria-modal="true" aria-labelledby="pauseTitle">
+  <div class="modal-card pause-card">
+    <h2 class="modal-title" id="pauseTitle">一時停止中</h2>
+    <p class="modal-foot" style="margin-top:8px">P または Esc で再開できます。</p>
+    <div class="pause-actions">
+      <button type="button" class="primary" id="btnResume">再開する</button>
+      <button type="button" id="btnRetryPause">やり直す</button>
+      <button type="button" class="ghost" id="btnQuitPause">ホームへ戻る</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ---------------------------------------------------------------- engine --- */
+const COLS = 10;
+const ROWS = 22;
+const HIDDEN_ROWS = 2;
+const VISIBLE_ROWS = 20;
+
+const PIECE_TYPES = ["I", "O", "T", "S", "Z", "J", "L"];
+const PIECE_COLORS = {
+  ".": "#000000",
+  I: "#22d3ee",
+  O: "#facc15",
+  T: "#a855f7",
+  S: "#22c55e",
+  Z: "#ef4444",
+  J: "#3b82f6",
+  L: "#f97316",
+  X: "#6b7280",
+};
+
+const LOCK_DELAY = 500;
+const HARD_DROP_LOCK_MS = 60;
+const DROP_MIN_MS = 70;
+const DROP_PER_ROW_MS = 9;
+const DROP_MAX_MS = 170;
+const MAX_LOCK_RESETS = 15;
+const DAS = 150;
+const ARR = 33;
+const SOFT_DROP_INTERVAL = 40;
+
+function gravityInterval(level) {
+  return Math.max(45, 800 * Math.pow(0.85, level - 1));
+}
+
+/* ---- shapes ---- */
+const BASE = {
+  I: [
+    [0, 0, 0, 0],
+    [1, 1, 1, 1],
+    [0, 0, 0, 0],
+    [0, 0, 0, 0],
+  ],
+  O: [
+    [1, 1],
+    [1, 1],
+  ],
+  T: [
+    [0, 1, 0],
+    [1, 1, 1],
+    [0, 0, 0],
+  ],
+  S: [
+    [0, 1, 1],
+    [1, 1, 0],
+    [0, 0, 0],
+  ],
+  Z: [
+    [1, 1, 0],
+    [0, 1, 1],
+    [0, 0, 0],
+  ],
+  J: [
+    [1, 0, 0],
+    [1, 1, 1],
+    [0, 0, 0],
+  ],
+  L: [
+    [0, 0, 1],
+    [1, 1, 1],
+    [0, 0, 0],
+  ],
+};
+
+function rotateCW(m) {
+  const n = m.length;
+  const out = [];
+  for (let r = 0; r < n; r++) {
+    out.push([]);
+    for (let c = 0; c < n; c++) out[r][c] = m[n - 1 - c][r];
+  }
+  return out;
+}
+
+const STATE_OFFSETS = {};
+for (const t of PIECE_TYPES) {
+  const states = [];
+  let m = BASE[t];
+  for (let r = 0; r < 4; r++) {
+    const offs = [];
+    m.forEach((row, dr) =>
+      row.forEach((v, dc) => {
+        if (v) offs.push([dr, dc]);
+      }),
+    );
+    states.push(offs);
+    m = rotateCW(m);
+  }
+  STATE_OFFSETS[t] = states;
+}
+
+function pieceCells(type, rot, x, y) {
+  return STATE_OFFSETS[type][rot].map(([dr, dc]) => [x + dc, y + dr]);
+}
+function pieceOffsets(type, rot) {
+  return STATE_OFFSETS[type][rot];
+}
+
+/* ---- SRS kicks ---- */
+const JLSTZ_KICKS = {
+  "0>1": [[0, 0], [-1, 0], [-1, 1], [0, -2], [-1, -2]],
+  "1>0": [[0, 0], [1, 0], [1, -1], [0, 2], [1, 2]],
+  "1>2": [[0, 0], [1, 0], [1, -1], [0, 2], [1, 2]],
+  "2>1": [[0, 0], [-1, 0], [-1, 1], [0, -2], [-1, -2]],
+  "2>3": [[0, 0], [1, 0], [1, 1], [0, -2], [1, -2]],
+  "3>2": [[0, 0], [-1, 0], [-1, -1], [0, 2], [-1, 2]],
+  "3>0": [[0, 0], [-1, 0], [-1, -1], [0, 2], [-1, 2]],
+  "0>3": [[0, 0], [1, 0], [1, 1], [0, -2], [1, -2]],
+};
+const I_KICKS = {
+  "0>1": [[0, 0], [-2, 0], [1, 0], [-2, -1], [1, 2]],
+  "1>0": [[0, 0], [2, 0], [-1, 0], [2, 1], [-1, -2]],
+  "1>2": [[0, 0], [-1, 0], [2, 0], [-1, 2], [2, -1]],
+  "2>1": [[0, 0], [1, 0], [-2, 0], [1, -2], [-2, 1]],
+  "2>3": [[0, 0], [2, 0], [-1, 0], [2, 1], [-1, -2]],
+  "3>2": [[0, 0], [-2, 0], [1, 0], [-2, -1], [1, 2]],
+  "3>0": [[0, 0], [1, 0], [-2, 0], [1, -2], [-2, 1]],
+  "0>3": [[0, 0], [-1, 0], [2, 0], [-1, 2], [2, -1]],
+};
+const KICK_180 = [[0, 0], [0, 1], [1, 0], [-1, 0], [0, -1], [1, 1], [-1, 1]];
+
+/* ---- scoring ---- */
+const COMBO_ATTACK = [0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 4, 5];
+
+function baseAttack(spin, n) {
+  if (n === 0) return 0;
+  if (spin === "full") return [0, 2, 4, 6, 8][n] !== undefined ? [0, 2, 4, 6, 8][n] : 8;
+  if (spin === "mini") return [0, 0, 1][n] !== undefined ? [0, 0, 1][n] : 2;
+  return [0, 0, 1, 2, 4][n] !== undefined ? [0, 0, 1, 2, 4][n] : 4;
+}
+function baseScore(spin, n) {
+  if (spin === "full") return [400, 800, 1200, 1600, 2000][n] !== undefined ? [400, 800, 1200, 1600, 2000][n] : 2000;
+  if (spin === "mini") return [100, 200, 400][n] !== undefined ? [100, 200, 400][n] : 400;
+  return [0, 100, 300, 500, 800][n] !== undefined ? [0, 100, 300, 500, 800][n] : 800;
+}
+function clearName(spin, n) {
+  if (spin === "full") {
+    return ["Tスピン", "Tスピンシングル", "Tスピンダブル", "Tスピントリプル", "Tスピンクアッド"][n] || "Tスピン";
+  }
+  if (spin === "mini") return ["Tスピンミニ", "Tスピンミニシングル", "Tスピンミニダブル"][n] || "Tスピンミニ";
+  return ["", "シングル", "ダブル", "トリプル", "テトリス"][n] || "テトリス";
+}
+
+/* ---- utils ---- */
+function mulberry32(seed) {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+const emptyRow = () => Array.from({ length: COLS }, () => ".");
+const emptyBoard = () => Array.from({ length: ROWS }, () => emptyRow());
+
+/* ---- engine ---- */
+class TetrisEngine {
+  constructor(seed) {
+    this.board = emptyBoard();
+    this.active = null;
+    this.hold = null;
+    this.canHold = true;
+    this.queue = [];
+    this.score = 0;
+    this.lines = 0;
+    this.pieces = 0;
+    this.combo = -1;
+    this.b2b = -1;
+    this.attackSent = 0;
+    this.dead = false;
+    this.garbageQueue = 0;
+    this.softDrop = false;
+    this.events = [];
+    this.rng = mulberry32(seed);
+    this.bag = [];
+    this.heldDir = 0;
+    this.das = 0;
+    this.arr = 0;
+    this.gravityAcc = 0;
+    this.lockTimer = 0;
+    this.lockResets = 0;
+    this.lastAction = "none";
+    this.lastKick = -1;
+    this.inputLockMs = 0;
+    this.dropAnim = null;
+    this.refillQueue();
+    this.nextSpawn();
+  }
+
+  level() {
+    return Math.min(15, Math.floor(this.lines / 10) + 1);
+  }
+
+  stats() {
+    return {
+      score: this.score,
+      lines: this.lines,
+      level: this.level(),
+      combo: this.combo,
+      b2b: this.b2b,
+      attackSent: this.attackSent,
+      pending: this.garbageQueue,
+      pieces: this.pieces,
+    };
+  }
+
+  update(dt) {
+    if (this.inputLockMs > 0) this.inputLockMs = Math.max(0, this.inputLockMs - dt);
+    const a = this.active;
+    if (this.dead || !a) return;
+
+    if (this.dropAnim) {
+      this.dropAnim.t += dt;
+      if (this.dropAnim.t >= this.dropAnim.dur) {
+        const distance = this.dropAnim.toY - this.dropAnim.fromY;
+        this.dropAnim = null;
+        this.landActive(distance);
+        this.inputLockMs = Math.max(this.inputLockMs, HARD_DROP_LOCK_MS);
+      }
+      return;
+    }
+
+    const dir = this.heldDir;
+    if (dir !== 0 && !this.softDrop && this.inputLockMs <= 0) {
+      this.das += dt;
+      if (this.das >= DAS) {
+        this.arr += dt;
+        while (this.arr >= ARR) {
+          this.arr -= ARR;
+          if (!this.move(dir)) {
+            this.arr = 0;
+            break;
+          }
+        }
+      }
+    }
+
+    const grounded = !this.fits(a.type, a.rot, a.x, a.y + 1);
+    if (grounded) {
+      this.gravityAcc = 0;
+      this.lockTimer += dt;
+      if (this.lockTimer >= LOCK_DELAY) this.lockPiece();
+      return;
+    }
+
+    this.lockTimer = 0;
+    this.gravityAcc += dt;
+    const interval = this.softDrop ? SOFT_DROP_INTERVAL : gravityInterval(this.level());
+    while (this.gravityAcc >= interval) {
+      this.gravityAcc -= interval;
+      if (!this.fits(a.type, a.rot, a.x, a.y + 1)) break;
+      a.y++;
+      this.lastAction = "move";
+      if (this.softDrop) this.score += 1;
+    }
+  }
+
+  setDir(d) {
+    if (d === this.heldDir) return;
+    this.heldDir = d;
+    this.das = 0;
+    this.arr = 0;
+    if (d !== 0 && !this.softDrop && this.inputLockMs <= 0) this.move(d);
+  }
+
+  setSoftDrop(on) {
+    if (!on && this.softDrop && this.heldDir !== 0) {
+      this.das = 0;
+      this.arr = 0;
+    }
+    this.softDrop = on;
+  }
+
+  move(dx) {
+    const a = this.active;
+    if (this.dead || !a || this.softDrop || this.inputLockMs > 0) return false;
+    if (!this.fits(a.type, a.rot, a.x + dx, a.y)) return false;
+    a.x += dx;
+    this.lastAction = "move";
+    this.afterAction();
+    return true;
+  }
+
+  rotate(dir) {
+    const a = this.active;
+    if (this.dead || !a || a.type === "O" || this.inputLockMs > 0) return false;
+    const to = (a.rot + dir + 4) % 4;
+    const key = a.rot + ">" + to;
+    const tests = dir === 2 ? KICK_180 : a.type === "I" ? I_KICKS[key] : JLSTZ_KICKS[key];
+    for (let i = 0; i < tests.length; i++) {
+      const kx = tests[i][0];
+      const ky = tests[i][1];
+      const nx = a.x + kx;
+      const ny = a.y - ky;
+      if (this.fits(a.type, to, nx, ny)) {
+        a.rot = to;
+        a.x = nx;
+        a.y = ny;
+        this.lastAction = "rotate";
+        this.lastKick = dir === 2 ? -1 : i;
+        this.afterAction();
+        return true;
+      }
+    }
+    return false;
+  }
+
+  hardDrop() {
+    const a = this.active;
+    if (this.dead || !a || this.inputLockMs > 0 || this.dropAnim) return false;
+    const fromY = a.y;
+    while (this.fits(a.type, a.rot, a.x, a.y + 1)) a.y++;
+    const distance = a.y - fromY;
+    if (distance > 0) {
+      this.lastAction = "move";
+      this.score += distance * 2;
+      const dur = Math.min(DROP_MAX_MS, DROP_MIN_MS + distance * DROP_PER_ROW_MS);
+      this.dropAnim = { fromY: fromY, toY: a.y, t: 0, dur: dur };
+      this.inputLockMs = dur + HARD_DROP_LOCK_MS;
+      return true;
+    }
+    this.inputLockMs = HARD_DROP_LOCK_MS;
+    this.landActive(0);
+    return true;
+  }
+
+  renderY() {
+    const a = this.active;
+    if (!a) return 0;
+    const d = this.dropAnim;
+    if (!d) return a.y;
+    const p = Math.min(1, d.t / d.dur);
+    return d.fromY + (d.toY - d.fromY) * p * p;
+  }
+
+  landActive(distance) {
+    const a = this.active;
+    if (!a) return;
+    this.events.push({
+      type: "land",
+      piece: a.type,
+      cells: pieceCells(a.type, a.rot, a.x, a.y),
+      distance: distance,
+    });
+    this.lockPiece();
+  }
+
+  holdPiece() {
+    const a = this.active;
+    if (this.dead || !a || !this.canHold || this.inputLockMs > 0) return;
+    this.canHold = false;
+    if (this.hold === null) {
+      this.hold = a.type;
+      this.nextSpawn();
+    } else {
+      const t = this.hold;
+      this.hold = a.type;
+      this.spawnType(t);
+    }
+  }
+
+  addGarbage(n) {
+    if (n > 0) this.garbageQueue += n;
+  }
+
+  drainEvents() {
+    const e = this.events;
+    this.events = [];
+    return e;
+  }
+
+  ghostY() {
+    const a = this.active;
+    if (!a) return 0;
+    let y = a.y;
+    while (this.fits(a.type, a.rot, a.x, y + 1)) y++;
+    return y;
+  }
+
+  snapshot() {
+    const grid = this.board.map((row) => row.slice());
+    const a = this.active;
+    if (a && !this.dead) {
+      for (const cell of pieceCells(a.type, a.rot, a.x, a.y)) {
+        const x = cell[0];
+        const y = cell[1];
+        if (y >= 0 && y < ROWS) grid[y][x] = a.type;
+      }
+    }
+    return grid.map((r) => r.join("")).join("");
+  }
+
+  fits(t, rot, x, y) {
+    for (const off of STATE_OFFSETS[t][rot]) {
+      const nx = x + off[1];
+      const ny = y + off[0];
+      if (nx < 0 || nx >= COLS || ny < 0 || ny >= ROWS) return false;
+      if (this.board[ny][nx] !== ".") return false;
+    }
+    return true;
+  }
+
+  isGrounded() {
+    const a = this.active;
+    return !!a && !this.fits(a.type, a.rot, a.x, a.y + 1);
+  }
+
+  afterAction() {
+    if (this.lockResets < MAX_LOCK_RESETS && this.isGrounded()) {
+      this.lockTimer = 0;
+      this.lockResets++;
+    }
+  }
+
+  refillQueue() {
+    while (this.queue.length < 6) this.queue.push(this.nextFromBag());
+  }
+
+  nextFromBag() {
+    if (this.bag.length === 0) {
+      const bag = PIECE_TYPES.slice();
+      for (let i = bag.length - 1; i > 0; i--) {
+        const j = Math.floor(this.rng() * (i + 1));
+        const tmp = bag[i];
+        bag[i] = bag[j];
+        bag[j] = tmp;
+      }
+      this.bag = bag;
+    }
+    return this.bag.pop();
+  }
+
+  nextSpawn() {
+    const t = this.queue.shift();
+    this.refillQueue();
+    this.spawnType(t);
+  }
+
+  spawnType(t) {
+    const a = { type: t, rot: 0, x: t === "O" ? 4 : 3, y: HIDDEN_ROWS - 1 };
+    this.active = a;
+    this.lockTimer = 0;
+    this.lockResets = 0;
+    this.gravityAcc = 0;
+    this.lastAction = "none";
+    this.lastKick = -1;
+    if (!this.fits(t, 0, a.x, a.y)) this.topOut();
+  }
+
+  topOut() {
+    this.dead = true;
+    this.active = null;
+    this.events.push({ type: "topout" });
+  }
+
+  detectSpin(a) {
+    if (a.type !== "T" || this.lastAction !== "rotate") return "none";
+    const cx = a.x + 1;
+    const cy = a.y + 1;
+    const blocked = (x, y) => x < 0 || x >= COLS || y < 0 || y >= ROWS || this.board[y][x] !== ".";
+    const tl = blocked(cx - 1, cy - 1);
+    const tr = blocked(cx + 1, cy - 1);
+    const bl = blocked(cx - 1, cy + 1);
+    const br = blocked(cx + 1, cy + 1);
+    const corners = [tl, tr, bl, br].filter(Boolean).length;
+    if (corners < 3) return "none";
+    let frontBoth;
+    switch (a.rot % 4) {
+      case 0:
+        frontBoth = tl && tr;
+        break;
+      case 1:
+        frontBoth = tr && br;
+        break;
+      case 2:
+        frontBoth = bl && br;
+        break;
+      default:
+        frontBoth = tl && bl;
+    }
+    return frontBoth || this.lastKick === 4 ? "full" : "mini";
+  }
+
+  lockPiece() {
+    const a = this.active;
+    if (!a) return;
+    const cells = pieceCells(a.type, a.rot, a.x, a.y);
+    this.active = null;
+
+    if (cells.every((c) => c[1] < HIDDEN_ROWS)) {
+      this.topOut();
+      return;
+    }
+
+    const spin = this.detectSpin(a);
+    for (const c of cells) {
+      if (c[1] >= 0 && c[1] < ROWS) this.board[c[1]][c[0]] = a.type;
+    }
+    this.pieces++;
+
+    const full = [];
+    for (let y = 0; y < ROWS; y++) {
+      if (this.board[y].every((c) => c !== ".")) full.push(y);
+    }
+    const n = full.length;
+    if (n > 0) {
+      this.board = this.board.filter((_, y) => full.indexOf(y) === -1);
+      while (this.board.length < ROWS) this.board.unshift(emptyRow());
+    }
+
+    this.applyClear(spin, n, full);
+    this.canHold = true;
+    if (this.dead) return;
+
+    if (this.garbageQueue > 0) {
+      const g = this.garbageQueue;
+      this.garbageQueue = 0;
+      this.receiveGarbage(g);
+      if (this.dead) return;
+    }
+    this.nextSpawn();
+  }
+
+  applyClear(spin, n, clearedRows) {
+    const lvl = this.level();
+
+    if (n === 0) {
+      if (spin !== "none") {
+        this.score += baseScore(spin, 0) * lvl;
+        this.events.push({
+          type: "clear",
+          name: clearName(spin, 0),
+          lines: 0,
+          spin: spin,
+          combo: -1,
+          b2b: false,
+          perfect: false,
+          attack: 0,
+          rows: [],
+        });
+      }
+      this.combo = -1;
+      return;
+    }
+
+    const perfect = this.board.every((row) => row.every((c) => c === "."));
+    const difficult = spin !== "none" || n === 4;
+    const b2bBonus = difficult && this.b2b >= 0;
+
+    let attack = baseAttack(spin, n);
+    let points = baseScore(spin, n) * lvl;
+
+    if (b2bBonus) {
+      attack += 1;
+      points = Math.floor(points * 1.5);
+    }
+
+    this.combo += 1;
+    attack += COMBO_ATTACK[Math.min(this.combo, COMBO_ATTACK.length - 1)];
+    if (this.combo > 0) points += 50 * this.combo * lvl;
+
+    if (perfect) {
+      attack += 10;
+      points += 2000;
+    }
+
+    if (difficult) this.b2b = this.b2b >= 0 ? this.b2b + 1 : 0;
+    else this.b2b = -1;
+
+    this.lines += n;
+    this.score += points;
+
+    const cancel = Math.min(this.garbageQueue, attack);
+    this.garbageQueue -= cancel;
+    const out = attack - cancel;
+    if (out > 0) {
+      this.attackSent += out;
+      this.events.push({ type: "attack", lines: out });
+    }
+
+    this.events.push({
+      type: "clear",
+      name: clearName(spin, n),
+      lines: n,
+      spin: spin,
+      combo: this.combo,
+      b2b: b2bBonus,
+      perfect: perfect,
+      attack: out,
+      rows: clearedRows.filter((y) => y >= HIDDEN_ROWS).map((y) => y - HIDDEN_ROWS),
+    });
+  }
+
+  receiveGarbage(n) {
+    const k = Math.min(n, ROWS);
+    for (let y = 0; y < k; y++) {
+      if (this.board[y].some((c) => c !== ".")) {
+        this.topOut();
+        return;
+      }
+    }
+    const hole = Math.floor(Math.random() * COLS);
+    this.board.splice(0, k);
+    for (let i = 0; i < k; i++) {
+      this.board.push(Array.from({ length: COLS }, (_, c) => (c === hole ? "." : "X")));
+    }
+    this.events.push({ type: "garbage", lines: k });
+  }
+}
+
+/* --------------------------------------------------------------- gesture --- */
+function thresholds(cell) {
+  return {
+    horizontal: Math.max(12, cell * 0.5),
+    vertical: Math.max(24, cell * 1.2),
+    tap: 12,
+    flickDown: Math.max(56, cell * 2.6),
+    flickUp: Math.max(50, cell * 2.2),
+    tapMs: 300,
+    flickMs: 300,
+    flickSoftMs: 180,
+    holdMs: 500,
+  };
+}
+function gestureStart(x, y, t) {
+  return { intent: "pending", startX: x, startY: y, startT: t, anchorX: x, softT: null, maxMove: 0 };
+}
+function gestureMove(s, x, y, t, cell) {
+  const th = thresholds(cell);
+  const dx = x - s.startX;
+  const dy = y - s.startY;
+  const ax = Math.abs(dx);
+  const ay = Math.abs(dy);
+  const next = Object.assign({}, s, { maxMove: Math.max(s.maxMove, ax, ay) });
+  let softOn = false;
+
+  if (next.intent === "pending") {
+    if (ax >= th.horizontal && ax > ay * 1.2) {
+      next.intent = "h";
+      next.anchorX = s.startX;
+    } else if (dy >= th.vertical && dy > ax * 2) {
+      next.intent = "v";
+      next.softT = t;
+      softOn = true;
+    }
+  }
+
+  let steps = 0;
+  if (next.intent === "h") {
+    const n = Math.trunc((x - next.anchorX) / cell);
+    if (n !== 0) {
+      steps = n;
+      next.anchorX += n * cell;
+    }
+  }
+  return { state: next, steps: steps, softOn: softOn };
+}
+function gestureEnd(s, x, y, t, cell) {
+  if (s.intent === "h") return "none";
+  const th = thresholds(cell);
+  const dx = x - s.startX;
+  const dy = y - s.startY;
+  const ax = Math.abs(dx);
+  const dur = t - s.startT;
+  const softRecent = s.softT === null || t - s.softT <= th.flickSoftMs;
+
+  if (dy >= th.flickDown && dy > ax * 2 && dur <= th.flickMs && softRecent) return "flickDown";
+  if (s.intent === "pending" && -dy >= th.flickUp && -dy > ax * 2 && dur <= th.holdMs) return "flickUp";
+  if (s.intent === "pending" && s.maxMove <= th.tap && dur <= th.tapMs) return "tap";
+  return "none";
+}
+
+/* ----------------------------------------------------------------- sound --- */
+const MUTE_KEY = "spin-arena:muted";
+
+class Sfx {
+  constructor() {
+    this.muted = false;
+    this.ctx = null;
+    this.master = null;
+    try {
+      this.muted = localStorage.getItem(MUTE_KEY) === "1";
+    } catch (e) {
+      this.muted = false;
+    }
+  }
+
+  unlock() {
+    if (!this.ctx) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return;
+      this.ctx = new AC();
+      this.master = this.ctx.createGain();
+      this.master.gain.value = this.muted ? 0 : 0.22;
+      this.master.connect(this.ctx.destination);
+    }
+    if (this.ctx.state === "suspended") this.ctx.resume();
+  }
+
+  setMuted(m) {
+    this.muted = m;
+    try {
+      localStorage.setItem(MUTE_KEY, m ? "1" : "0");
+    } catch (e) {
+      /* ignore */
+    }
+    if (this.master && this.ctx) {
+      this.master.gain.setTargetAtTime(m ? 0 : 0.22, this.ctx.currentTime, 0.01);
+    }
+  }
+
+  tone(freq, dur, type, vol, delay, slideTo) {
+    type = type || "square";
+    vol = vol === undefined ? 0.5 : vol;
+    delay = delay || 0;
+    if (!this.ctx || !this.master || this.muted) return;
+    const t0 = this.ctx.currentTime + delay;
+    const osc = this.ctx.createOscillator();
+    const g = this.ctx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, t0);
+    if (slideTo) osc.frequency.exponentialRampToValueAtTime(Math.max(30, slideTo), t0 + dur);
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(vol, t0 + 0.008);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    osc.connect(g).connect(this.master);
+    osc.start(t0);
+    osc.stop(t0 + dur + 0.02);
+  }
+
+  thud(dur, vol) {
+    dur = dur || 0.09;
+    vol = vol === undefined ? 0.7 : vol;
+    if (!this.ctx || !this.master || this.muted) return;
+    const t0 = this.ctx.currentTime;
+    const len = Math.floor(this.ctx.sampleRate * dur);
+    const buf = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / len);
+    const src = this.ctx.createBufferSource();
+    src.buffer = buf;
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = "lowpass";
+    filter.frequency.value = 420;
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(vol, t0);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    src.connect(filter).connect(g).connect(this.master);
+    src.start(t0);
+  }
+
+  play(name) {
+    if (!this.ctx || this.muted) return;
+    const self = this;
+    switch (name) {
+      case "move":
+        this.tone(210, 0.03, "square", 0.12);
+        break;
+      case "rotate":
+        this.tone(330, 0.05, "triangle", 0.35);
+        this.tone(495, 0.04, "triangle", 0.2, 0.03);
+        break;
+      case "hold":
+        this.tone(262, 0.06, "sine", 0.4);
+        this.tone(392, 0.08, "sine", 0.35, 0.05);
+        break;
+      case "harddrop":
+        this.thud(0.1, 0.8);
+        this.tone(95, 0.1, "sine", 0.6, 0, 55);
+        break;
+      case "clear":
+        this.tone(523, 0.09, "square", 0.3);
+        this.tone(659, 0.09, "square", 0.3, 0.06);
+        this.tone(784, 0.12, "square", 0.3, 0.12);
+        break;
+      case "tetris":
+        [523, 659, 784, 1046, 1318].forEach((f, i) => self.tone(f, 0.12, "square", 0.32, i * 0.06));
+        this.thud(0.12, 0.5);
+        break;
+      case "tspin":
+        [440, 554, 659, 880].forEach((f, i) => self.tone(f, 0.14, "sawtooth", 0.22, i * 0.055));
+        this.tone(1760, 0.2, "sine", 0.18, 0.22);
+        break;
+      case "garbage":
+        this.tone(160, 0.22, "sawtooth", 0.35, 0, 70);
+        this.thud(0.14, 0.4);
+        break;
+      case "attack":
+        this.tone(740, 0.05, "square", 0.22);
+        this.tone(988, 0.07, "square", 0.22, 0.045);
+        break;
+      case "count":
+        this.tone(660, 0.09, "square", 0.3);
+        break;
+      case "go":
+        this.tone(880, 0.12, "square", 0.35);
+        this.tone(1320, 0.2, "square", 0.3, 0.08);
+        break;
+      case "over":
+        [392, 330, 262, 196].forEach((f, i) => self.tone(f, 0.22, "triangle", 0.35, i * 0.16));
+        break;
+      case "win":
+        [523, 659, 784, 1046, 1318, 1568].forEach((f, i) => self.tone(f, 0.14, "triangle", 0.32, i * 0.09));
+        break;
+      default:
+        break;
+    }
+  }
+}
+const sfx = new Sfx();
+
+/* ---------------------------------------------------------------- render --- */
+function drawCell(ctx, col, row, size, color, alpha) {
+  if (alpha === undefined) alpha = 1;
+  const x = col * size;
+  const y = row * size;
+  const b = Math.max(1, Math.round(size * 0.12));
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = color;
+  ctx.fillRect(x, y, size, size);
+  ctx.fillStyle = "rgba(255,255,255,0.35)";
+  ctx.fillRect(x, y, size, b);
+  ctx.fillRect(x, y, b, size);
+  ctx.fillStyle = "rgba(0,0,0,0.3)";
+  ctx.fillRect(x, y + size - b, size, b);
+  ctx.fillRect(x + size - b, y, b, size);
+  ctx.globalAlpha = 1;
+}
+
+function drawBackground(ctx, w, h, cell) {
+  ctx.fillStyle = "#070b14";
+  ctx.fillRect(0, 0, w, h);
+  ctx.strokeStyle = "rgba(255,255,255,0.035)";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let x = 1; x < COLS; x++) {
+    ctx.moveTo(x * cell + 0.5, 0);
+    ctx.lineTo(x * cell + 0.5, h);
+  }
+  for (let y = 1; y < VISIBLE_ROWS; y++) {
+    ctx.moveTo(0, y * cell + 0.5);
+    ctx.lineTo(w, y * cell + 0.5);
+  }
+  ctx.stroke();
+}
+
+function drawBoard(ctx, board, cell, active, ghostY, activeY) {
+  const w = COLS * cell;
+  const h = VISIBLE_ROWS * cell;
+  if (activeY === undefined) activeY = active ? active.y : 0;
+  drawBackground(ctx, w, h, cell);
+
+  for (let y = HIDDEN_ROWS; y < ROWS; y++) {
+    for (let x = 0; x < COLS; x++) {
+      const c = board[y][x];
+      if (c !== ".") drawCell(ctx, x, y - HIDDEN_ROWS, cell, PIECE_COLORS[c]);
+    }
+  }
+
+  if (active) {
+    const color = PIECE_COLORS[active.type];
+    if (ghostY !== active.y) {
+      ctx.lineWidth = 2;
+      for (const cellInfo of pieceCells(active.type, active.rot, active.x, ghostY)) {
+        const x = cellInfo[0];
+        const y = cellInfo[1];
+        if (y < HIDDEN_ROWS) continue;
+        const px = x * cell;
+        const py = (y - HIDDEN_ROWS) * cell;
+        ctx.globalAlpha = 0.2;
+        ctx.fillStyle = color;
+        ctx.fillRect(px, py, cell, cell);
+        ctx.globalAlpha = 0.85;
+        ctx.strokeStyle = color;
+        ctx.strokeRect(px + 1, py + 1, cell - 2, cell - 2);
+      }
+      ctx.globalAlpha = 1;
+    }
+    for (const off of pieceOffsets(active.type, active.rot)) {
+      drawCell(ctx, active.x + off[1], activeY + off[0] - HIDDEN_ROWS, cell, color);
+    }
+  }
+}
+
+function drawSnapshot(ctx, snap, cell) {
+  const w = COLS * cell;
+  const h = VISIBLE_ROWS * cell;
+  drawBackground(ctx, w, h, cell);
+  if (!snap || snap.length < ROWS * COLS) return;
+  for (let y = HIDDEN_ROWS; y < ROWS; y++) {
+    for (let x = 0; x < COLS; x++) {
+      const ch = snap[y * COLS + x];
+      if (ch !== "." && PIECE_COLORS[ch]) drawCell(ctx, x, y - HIDDEN_ROWS, cell, PIECE_COLORS[ch]);
+    }
+  }
+}
+
+function drawPreview(ctx, type, cell, alpha) {
+  if (alpha === undefined) alpha = 1;
+  const cw = ctx.canvas.width;
+  const ch = ctx.canvas.height;
+  ctx.clearRect(0, 0, cw, ch);
+  if (!type) return;
+  const cells = pieceCells(type, 0, 0, 0);
+  const xs = cells.map((c) => c[0]);
+  const ys = cells.map((c) => c[1]);
+  const minX = Math.min.apply(null, xs);
+  const maxX = Math.max.apply(null, xs);
+  const minY = Math.min.apply(null, ys);
+  const maxY = Math.max.apply(null, ys);
+  const bw = maxX - minX + 1;
+  const bh = maxY - minY + 1;
+  const ox = Math.floor((cw / cell - bw) / 2) - minX;
+  const oy = Math.floor((ch / cell - bh) / 2) - minY;
+  for (const c of cells) drawCell(ctx, c[0] + ox, c[1] + oy, cell, PIECE_COLORS[type], alpha);
+}
+
+/* ------------------------------------------------------------------ state --- */
+const STORE = {
+  best: "spin-arena:best",
+  tutorial: "spin-arena:tutorialSeen",
+  advanced: "spin-arena:advancedUnlocked",
+};
+
+const TUT_KEY = STORE.tutorial;
+const TUT_ADV_KEY = STORE.advanced;
+const ADV_PIECES = 8;
+const CELL = 30;
+const PREVIEW_CELL = 14;
+const POPUP_MS = 1600;
+const LAND_FX_MS = 170;
+const LONG_PRESS_MS = 400;
+const SPARK_COLORS = ["#22d3ee", "#e879f9", "#fde047", "#ffffff"];
+
+const state = {
+  mode: "solo",
+  status: "menu", // menu | count | playing | paused | over
+  engine: null,
+  seed: 0,
+  advanced: false,
+  muted: false,
+  isTouch: false,
+  deadMatch: false,
+  best: 0,
+};
+
+let mainCtx = null;
+let holdCtx = null;
+let nextCtxs = [];
+
+const popupRef = { value: null };
+const landFxRef = { value: null };
+const flashRef = { value: null };
+const shakeRef = { value: null };
+const particlesRef = { value: [] };
+const gestureRef = { value: null };
+const pressedRef = { value: new Set() };
+const pointersRef = { value: new Set() };
+const lastMoveSfx = { value: 0 };
+const scheduledGarbage = { value: [] };
+let last = 0;
+let hudAcc = 0;
+let snapAcc = 0;
+let reported = false;
+let countTimer = null;
+
+/* --------------------------------------------------------------- elements --- */
+const el = {
+  board: document.getElementById("board"),
+  boardWrap: document.getElementById("boardWrap"),
+  hold: document.getElementById("holdCv"),
+  holdCard: document.getElementById("holdCard"),
+  nextList: document.getElementById("nextList"),
+  hudScore: document.getElementById("hudScore"),
+  hudLines: document.getElementById("hudLines"),
+  hudLevel: document.getElementById("hudLevel"),
+  hudAttack: document.getElementById("hudAttack"),
+  hudB2b: document.getElementById("hudB2b"),
+  hudCombo: document.getElementById("hudCombo"),
+  gaugeFill: document.getElementById("gaugeFill"),
+  softPill: document.getElementById("softPill"),
+  popupLayer: document.getElementById("popupLayer"),
+  countLayer: document.getElementById("countLayer"),
+  countNum: document.getElementById("countNum"),
+  overLayer: document.getElementById("overLayer"),
+  bestVal: document.getElementById("bestVal"),
+  btnHelp: document.getElementById("btnHelp"),
+  btnSound: document.getElementById("btnSound"),
+  hintKeys: document.getElementById("hintKeys"),
+  hintTouch: document.getElementById("hintTouch"),
+  tutorialModal: document.getElementById("tutorialModal"),
+  tutStart: document.getElementById("tutStart"),
+  tutNote: document.getElementById("tutNote"),
+  tutTitle: document.getElementById("tutTitle"),
+  basicBox: document.getElementById("basicBox"),
+  advBox: document.getElementById("advBox"),
+  advLabel: document.getElementById("advLabel"),
+  pauseModal: document.getElementById("pauseModal"),
+  btnResume: document.getElementById("btnResume"),
+  btnRetryPause: document.getElementById("btnRetryPause"),
+  btnQuitPause: document.getElementById("btnQuitPause"),
+  battleSide: document.getElementById("battleSide"),
+  toastLayer: document.getElementById("toastLayer"),
+  touchpad: document.getElementById("touchpad"),
+};
+
+/* ------------------------------------------------------------------- init --- */
+function init() {
+  mainCtx = el.board.getContext("2d");
+  holdCtx = el.hold.getContext("2d");
+
+  // next previews
+  for (let i = 0; i < 5; i++) {
+    const cv = document.createElement("canvas");
+    cv.width = 56;
+    cv.height = 56;
+    el.nextList.appendChild(cv);
+    nextCtxs.push(cv.getContext("2d"));
+  }
+
+  try {
+    state.best = Number(localStorage.getItem(STORE.best) || 0) || 0;
+    state.advanced = localStorage.getItem(TUT_ADV_KEY) === "1";
+  } catch (e) {
+    state.best = 0;
+  }
+  state.muted = sfx.muted;
+  state.isTouch = window.matchMedia("(pointer: coarse)").matches || "ontouchstart" in window;
+
+  updateSoundButton();
+  updateBest();
+  updateHints();
+
+  // Build the home markup first, then wire everything up.
+  const homeHost = document.getElementById("homeView");
+  if (homeHost) homeHost.replaceWith(buildHome());
+
+  bindEvents();
+  bindHome();
+  bindGameHeader();
+  drawEmptyFrame();
+  screenHome();
+  maybeRejoinFromHash();
+
+  requestAnimationFrame(loop);
+}
+
+/**
+ * `#room=ABC123` 付きで開かれたら、保存済みの playerId でそのルームに戻る。
+ * （招待URLをそのまま配れば、参加後にリロードしても席が保たれます）
+ */
+function maybeRejoinFromHash() {
+  const match = /[#&]room=([A-Z0-9]{6})/i.exec(location.hash || "");
+  if (!match) return;
+  const code = match[1].toUpperCase();
+  const playerId = recallRoom(code);
+  if (!playerId) {
+    const input = document.getElementById("joinCode");
+    if (input) input.value = code;
+    return;
+  }
+  screenGame("online", { code: code, playerId: playerId });
+}
+
+function drawEmptyFrame() {
+  if (mainCtx) drawBackground(mainCtx, COLS * CELL, VISIBLE_ROWS * CELL, CELL);
+  if (holdCtx) drawPreview(holdCtx, null, PREVIEW_CELL);
+  nextCtxs.forEach((c) => drawPreview(c, null, PREVIEW_CELL));
+}
+
+/* ------------------------------------------------------------------ views --- */
+function updateSoundButton() {
+  el.btnSound.textContent = state.muted ? "🔇 ミュート中" : "🔊 音 ON";
+  el.btnSound.classList.toggle("on", !state.muted);
+}
+
+function updateBest() {
+  el.bestVal.textContent = state.best.toLocaleString();
+}
+
+function updateHints() {
+  el.hintKeys.textContent = state.advanced
+    ? "←→ 移動 / ↓ ソフト / Space 即落下 / ↑・X 右回転 / Z 左回転 / A 180° / C ホールド / P 一時停止"
+    : "←→ 移動 / ↑・X 回転 / ↓ ソフトドロップ / Space 即落下 / P 一時停止";
+  el.hintTouch.textContent = state.advanced
+    ? "スワイプ=移動 / タップ=回転 / 2本指=逆回転 / 下押しっぱなし=ソフト / 上フリック・長押し=ホールド"
+    : "スワイプ=移動 / タップ=回転 / 下押しっぱなし=ソフトドロップ / ⚡DROP=即落下";
+}
+
+function touchRowsHtml(rows) {
+  return (
+    '<ul class="glist">' +
+    rows
+      .map(
+        (r) =>
+          '<li><span class="icon">' +
+          r[0] +
+          '</span><div><p class="lbl">' +
+          r[1] +
+          '</p><p class="desc">' +
+          r[2] +
+          "</p></div></li>",
+      )
+      .join("") +
+    "</ul>"
+  );
+}
+
+function keyRowsHtml(rows) {
+  return (
+    '<ul class="keylist">' +
+    rows
+      .map((r) => "<li><kbd>" + r[0] + "</kbd><span class=\"desc\">" + r[1] + "</span></li>")
+      .join("") +
+    "</ul>"
+  );
+}
+
+const basicsTouch = [
+  ["↔️", "左右移動", "盤面を横にスワイプ（動かしている間は落ちません）"],
+  ["👆", "回転", "盤面をタップ"],
+  ["⬇️", "落下", "下にドラッグして押しっぱなし＝ゆっくり落下。一気に落とすのは ⚡DROP ボタン"],
+];
+const advancedTouch = [
+  ["✌️", "逆回転（左回転）", "2本指でタップ"],
+  ["🔄", "180°回転", "180°ボタン"],
+  ["⬆️", "ホールド", "上フリック または 長押し"],
+  ["⚡", "ハードドロップ", "素早く下にフリック"],
+];
+const basicsKeys = [
+  ["← →", "左右移動"],
+  ["↑ / X", "回転"],
+  ["↓ / Space", "落下（↓=ゆっくり / Space=一気に）"],
+];
+const advancedKeys = [
+  ["Z / Ctrl", "逆回転（左回転）"],
+  ["A", "180°回転"],
+  ["C / Shift", "ホールド"],
+  ["Enter", "ハードドロップ（Spaceでも可）"],
+];
+
+function renderTutorial() {
+  const isTouch = state.isTouch;
+  const basic = isTouch ? touchRowsHtml(basicsTouch) : keyRowsHtml(basicsKeys);
+  const other = isTouch ? keyRowsHtml(basicsKeys) : touchRowsHtml(basicsTouch);
+  el.basicBox.innerHTML =
+    basic +
+    '<p class="step-sub">' +
+    (isTouch ? "キーボードなら" : "タッチなら") +
+    "</p>" +
+    other;
+
+  const pieces = state.engine ? state.engine.pieces : 0;
+  el.advLabel.textContent = "STEP 2 ｜ 応用操作" + (state.advanced ? "（解放済み！）" : " 🔒");
+
+  if (state.advanced) {
+    const adv = isTouch ? touchRowsHtml(advancedTouch) : keyRowsHtml(advancedKeys);
+    const advOther = isTouch ? keyRowsHtml(advancedKeys) : touchRowsHtml(advancedTouch);
+    el.advBox.innerHTML =
+      '<div class="step-box pink">' +
+      adv +
+      '<p class="step-sub">' +
+      (isTouch ? "キーボードなら" : "タッチなら") +
+      "</p>" +
+      advOther +
+      "</div>";
+  } else {
+    const left = Math.max(0, ADV_PIECES - pieces);
+    const pct = Math.min(100, (Math.min(ADV_PIECES, pieces) / ADV_PIECES) * 100);
+    el.advBox.innerHTML =
+      '<div class="locked-box">' +
+      '<p class="t1">ピースを ' +
+      ADV_PIECES +
+      " 個置くと解放されます</p>" +
+      '<p class="t2">逆回転・180°回転・ホールド・フリック即ドロップ が使えるように</p>' +
+      '<div class="prog"><div style="width:' +
+      pct +
+      '%"></div></div>' +
+      '<p class="prog-label">のこり ' +
+      left +
+      " ピース</p></div>";
+  }
+}
+
+function showTutorial(isFirstTime) {
+  if (state.status === "playing" || state.status === "count") state.status = "paused";
+  renderTutorial();
+  el.tutNote.style.display = state.mode === "online" ? "block" : "none";
+  el.tutTitle.textContent = "操作説明";
+  el.tutStart.textContent = isFirstTime ? "わかった！はじめる" : "ゲームに戻る";
+  el.tutorialModal.classList.add("open");
+}
+
+function hideTutorial() {
+  el.tutorialModal.classList.remove("open");
+}
+
+/* ============================================================================
+ * 画面切り替え・ホーム
+ * ========================================================================== */
+
+const HOME_FEATURES = [
+  { title: "Tスピン / ミニ", desc: "3隅判定とキック判定で本格的なTスピンを検出" },
+  { title: "Tスピントリプル(TST)", desc: "B2B・コンボ・パーフェクトクリアで攻撃力アップ" },
+  {
+    title: "ホールド & 7種1巡",
+    desc: "5手先まで見えるネクストと即ホールド。ピースは7種1巡（7-bag）で公平に出現",
+  },
+  { title: "友達と最大8人対戦", desc: "招待コードで集まって、生き残るまで攻撃し合おう" },
+  { title: "スマホ対応", desc: "タッチボタンとスワイプ操作で指だけでプレイ" },
+  { title: "ガベージ相殺", desc: "攻撃を受ける前に自分の攻撃で相殺できる" },
+];
+
+const HOME_STEPS = [
+  "ニックネームを入力して「ルームを作成」",
+  "表示された招待コード（またはURL）を友達に共有",
+  "全員が集まったらホストが「対戦開始」",
+  "ラインを消して攻撃し、最後まで生き残れば勝利！",
+];
+
+const NAME_KEY = "spin-arena:name";
+const DEFAULT_PLAYER_NAME = "プレイヤー";
+const roomPlayerKey = (code) => "spin-arena:room:" + code;
+
+function buildHome() {
+  const home = document.createElement("div");
+  home.id = "homeView";
+  home.className = "home";
+  home.innerHTML =
+    '<div class="home-inner">' +
+      '<p class="kicker">T-SPIN TETRIS BATTLE</p>' +
+      '<h1 class="hero">入入</h1>' +
+      '<p class="hero-sub">にゅうにゅう</p>' +
+      '<p class="hero-desc">Tスピン・テトリス・B2B・コンボで相手に攻撃。最後まで生き残ったプレイヤーが勝者です。</p>' +
+
+      '<section class="panel-home">' +
+        '<label class="field-label" for="nickname">ニックネーム</label>' +
+        '<input id="nickname" class="text-input" maxlength="12" placeholder="例：たろう" autocomplete="nickname" />' +
+
+        '<div class="mode-grid">' +
+          '<button type="button" class="mode-btn solo" id="btnSolo">' +
+            '<span class="mode-icon">🎮</span>' +
+            '<span class="mode-name">ソロプレイ</span>' +
+            '<span class="mode-desc">ひとりで練習</span>' +
+          '</button>' +
+          '<button type="button" class="mode-btn cpu" id="btnCreate">' +
+            '<span class="mode-icon">⚔️</span>' +
+            '<span class="mode-name">ルームを作成</span>' +
+            '<span class="mode-desc">友達を招待して対戦</span>' +
+          '</button>' +
+        '</div>' +
+
+        '<div class="join-box">' +
+          '<p class="join-title">招待コードで参加</p>' +
+          '<div class="join-row">' +
+            '<input id="joinCode" class="code-input" placeholder="ABC123" maxlength="6" inputmode="latin" autocomplete="off" />' +
+            '<button type="button" class="join-btn" id="btnJoin">参加</button>' +
+          '</div>' +
+        '</div>' +
+
+        '<p class="home-error" id="homeError" role="alert"></p>' +
+        '<p class="server-state" id="serverState"></p>' +
+      '</section>' +
+
+      '<details class="features-fold">' +
+        '<summary>機能と遊び方</summary>' +
+        '<div class="features">' +
+          HOME_FEATURES.map(function (f) {
+            return '<div class="feature"><p class="feature-title">' + f.title +
+              '</p><p class="feature-desc">' + f.desc + "</p></div>";
+          }).join("") +
+        '</div>' +
+        '<div class="howto">' +
+          '<p class="howto-title">遊び方</p><ol>' +
+          HOME_STEPS.map(function (x) { return "<li>" + x + "</li>"; }).join("") +
+          "</ol></div>" +
+      "</details>" +
+    "</div>";
+  return home;
+}
+
+function screenHome() {
+  stopOnline();
+  state.status = "menu";
+  state.engine = null;
+  document.body.classList.remove("game-mode", "battle");
+  const home = document.getElementById("homeView");
+  if (home) home.style.display = "flex";
+  const game = document.getElementById("gameView");
+  if (game) game.style.display = "none";
+  try {
+    const saved = localStorage.getItem(NAME_KEY);
+    const input = document.getElementById("nickname");
+    if (input && saved) input.value = saved;
+  } catch (e) {
+    /* ignore */
+  }
+  window.scrollTo(0, 0);
+}
+
+function screenGame(mode, roomInfo) {
+  const home = document.getElementById("homeView");
+  if (home) home.style.display = "none";
+  const game = document.getElementById("gameView");
+  if (game) game.style.display = "flex";
+  document.body.classList.add("game-mode");
+  document.body.classList.toggle("battle", mode === "online");
+
+  const modePill = document.getElementById("modePill");
+  if (modePill) modePill.textContent = mode === "online" ? "ルーム対戦" : "ソロ";
+
+  window.scrollTo(0, 0);
+
+  if (mode === "online") {
+    startOnline(roomInfo);
+  } else {
+    stopOnline();
+    startGame("solo");
+  }
+}
+
+function stopGame() {
+  state.status = "menu";
+  state.engine = null;
+  stopOnline();
+  pressedRef.value.clear();
+  if (countTimer) {
+    clearInterval(countTimer);
+    countTimer = null;
+  }
+  el.countLayer.classList.remove("show");
+  el.pauseModal.classList.remove("open");
+  el.tutorialModal.classList.remove("open");
+  el.overLayer.classList.remove("show");
+  el.overLayer.innerHTML = "";
+  el.popupLayer.innerHTML = "";
+  scheduledGarbage.value = [];
+  particlesRef.value = [];
+  gestureRef.value = null;
+}
+
+/* --------------------------------------------------------------- 名前/入力 --- */
+function playerName() {
+  const input = document.getElementById("nickname");
+  const raw = input ? input.value.trim().slice(0, 12) : "";
+  try {
+    localStorage.setItem(NAME_KEY, raw);
+  } catch (e) {
+    /* ignore */
+  }
+  return raw || DEFAULT_PLAYER_NAME;
+}
+
+function homeError(msg) {
+  const p = document.getElementById("homeError");
+  if (!p) return;
+  p.textContent = msg || "";
+  p.style.display = msg ? "block" : "none";
+}
+
+function initJoinCodeInput() {
+  const input = document.getElementById("joinCode");
+  if (!input) return;
+  input.addEventListener("input", function () {
+    const cleaned = input.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6);
+    if (input.value !== cleaned) input.value = cleaned;
+  });
+  input.addEventListener("keydown", function (e) {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      document.getElementById("btnJoin").click();
+    }
+  });
+}
+
+/* -------------------------------------------------------- ホームの配線 --- */
+function bindHome() {
+  document.getElementById("btnSolo").addEventListener("click", function () {
+    sfx.unlock();
+    playerName();
+    screenGame("solo");
+  });
+
+  document.getElementById("btnCreate").addEventListener("click", function () {
+    sfx.unlock();
+    createRoomOnline();
+  });
+
+  document.getElementById("btnJoin").addEventListener("click", function () {
+    sfx.unlock();
+    joinRoomOnline();
+  });
+
+  document.getElementById("nickname").addEventListener("keydown", function (e) {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      document.getElementById("btnCreate").focus();
+    }
+  });
+
+  initJoinCodeInput();
+  checkServer();
+}
+
+/* ------------------------------------------------------------- サーバー --- */
+function setServerState(text, ok) {
+  const p = document.getElementById("serverState");
+  if (!p) return;
+  p.textContent = text || "";
+  p.className = "server-state" + (ok ? " ok" : "");
+  p.style.display = text ? "block" : "none";
+}
+
+async function checkServer() {
+  if (location.protocol === "file:") {
+    setServerState(
+      "オンライン対戦を使うには `node server.js` で起動したURLを開いてください（現在はファイルとして直接開かれています）。",
+      false,
+    );
+    return false;
+  }
+  try {
+    const res = await fetch("/api/health", { cache: "no-store" });
+    if (!res.ok) throw new Error("bad");
+    setServerState("", false);
+    return true;
+  } catch (e) {
+    setServerState("サーバーに接続できません。`node server.js` で起動してからこのURLを開いてください。", false);
+    return false;
+  }
+}
+
+function onlineBusy(on) {
+  ["btnCreate", "btnJoin", "btnSolo"].forEach(function (id) {
+    const b = document.getElementById(id);
+    if (b) b.disabled = on;
+  });
+}
+
+async function createRoomOnline() {
+  homeError("");
+  onlineBusy(true);
+  try {
+    const res = await fetch("/api/rooms", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: playerName() }),
+    });
+    const data = await res.json().catch(function () { return {}; });
+    if (!res.ok || !data.code || !data.playerId) {
+      homeError(data.error || "ルームを作成できませんでした。");
+      return;
+    }
+    rememberRoom(data.code, data.playerId);
+    history.replaceState(null, "", "#room=" + data.code);
+    screenGame("online", { code: data.code, playerId: data.playerId });
+  } catch (e) {
+    homeError("サーバーに接続できません。`node server.js` で起動してから開いてください。");
+  } finally {
+    onlineBusy(false);
+  }
+}
+
+async function joinRoomOnline() {
+  const input = document.getElementById("joinCode");
+  const code = (input ? input.value : "").trim().toUpperCase();
+  if (!/^[A-Z0-9]{6}$/.test(code)) {
+    homeError("6文字の招待コードを入力してください。");
+    return;
+  }
+  homeError("");
+  onlineBusy(true);
+  try {
+    const res = await fetch("/api/rooms/" + code + "/join", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: playerName() }),
+    });
+    const data = await res.json().catch(function () { return {}; });
+    if (!res.ok || !data.playerId) {
+      homeError(data.error || "参加できませんでした。");
+      return;
+    }
+    rememberRoom(code, data.playerId);
+    history.replaceState(null, "", "#room=" + code);
+    screenGame("online", { code: code, playerId: data.playerId });
+  } catch (e) {
+    homeError("サーバーに接続できません。`node server.js` で起動してから開いてください。");
+  } finally {
+    onlineBusy(false);
+  }
+}
+
+function rememberRoom(code, playerId) {
+  try {
+    localStorage.setItem(roomPlayerKey(code), playerId);
+  } catch (e) {
+    /* ignore */
+  }
+}
+
+function recallRoom(code) {
+  try {
+    return localStorage.getItem(roomPlayerKey(code));
+  } catch (e) {
+    return null;
+  }
+}
+
+function forgetRoom(code) {
+  try {
+    localStorage.removeItem(roomPlayerKey(code));
+  } catch (e) {
+    /* ignore */
+  }
+}
+
+/* ============================================================================
+ * オンライン対戦（server.js 経由）
+ *   SSE でルーム状態を受信 / ロビー / 対戦（同一シードで同時スタート）
+ * ========================================================================== */
+
+const MAX_PLAYERS = 8;
+
+const online = {
+  es: null,
+  pollTimer: null,
+  sseErrors: 0,
+  code: null,
+  playerId: null,
+  view: null,
+  startedMatch: -1,
+  lastSnapshot: "",
+  snapshotTimer: null,
+  deadReported: false,
+  sendQueue: [],
+  sending: false,
+};
+
+function startOnline(info) {
+  if (!info || !info.code || !info.playerId) {
+    screenHome();
+    return;
+  }
+  stopOnline();
+  online.code = info.code;
+  online.playerId = info.playerId;
+  online.sseErrors = 0;
+  online.startedMatch = -1;
+  online.lastSnapshot = "";
+  online.deadReported = false;
+
+  state.mode = "online";
+  state.status = "lobby";
+  state.engine = null;
+
+  showGamePanels("lobby");
+  renderLobby(null);
+  connectEvents();
+  startSnapshotLoop();
+}
+
+function stopOnline() {
+  if (online.es) {
+    try { online.es.close(); } catch (e) { /* ignore */ }
+    online.es = null;
+  }
+  if (online.pollTimer) {
+    clearTimeout(online.pollTimer);
+    online.pollTimer = null;
+  }
+  if (online.snapshotTimer) {
+    clearInterval(online.snapshotTimer);
+    online.snapshotTimer = null;
+  }
+  online.view = null;
+  online.code = null;
+  online.playerId = null;
+  online.sendQueue = [];
+  online.sending = false;
+}
+
+/* --------------------------------------------------------------- 通信 --- */
+function connectEvents() {
+  if (typeof EventSource === "undefined") {
+    startPolling();
+    return;
+  }
+  const es = new EventSource(
+    "/api/rooms/" + online.code + "/events?playerId=" + encodeURIComponent(online.playerId),
+  );
+  online.es = es;
+
+  es.addEventListener("state", function (event) {
+    try {
+      const payload = JSON.parse(event.data);
+      online.sseErrors = 0;
+      applyRoomView(payload.view, payload.garbage || 0);
+    } catch (e) { /* malformed frame */ }
+  });
+
+  es.addEventListener("gone", function () {
+    try { es.close(); } catch (e) { /* ignore */ }
+    online.es = null;
+    onlineRoomGone();
+  });
+
+  es.onerror = function () {
+    online.sseErrors += 1;
+    if (online.sseErrors >= 2 && online.es === es) {
+      try { es.close(); } catch (e) { /* ignore */ }
+      online.es = null;
+      startPolling();
+    }
+  };
+}
+
+function startPolling() {
+  if (online.pollTimer) return;
+  const poll = async function () {
+    if (!online.code) return;
+    const code = online.code;
+    try {
+      const res = await fetch(
+        "/api/rooms/" + code + "?playerId=" + encodeURIComponent(online.playerId),
+        { cache: "no-store" },
+      );
+      if (res.status === 404) {
+        onlineRoomGone();
+        return;
+      }
+      const view = await res.json();
+      let garbage = 0;
+      if (view.me && view.me.incoming > 0 && view.status === "playing") {
+        const r = await fetch("/api/rooms/" + code + "/action", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ playerId: online.playerId, action: "consume" }),
+        });
+        if (r.ok) garbage = (await r.json()).amount || 0;
+      }
+      applyRoomView(view, garbage);
+    } catch (e) { /* retry */ }
+    if (online.code === code) online.pollTimer = setTimeout(poll, 450);
+  };
+  poll();
+}
+
+function queueAction(action, payload) {
+  if (!online.code || !online.playerId) return;
+  online.sendQueue.push({ action: action, payload: payload });
+  flushQueue();
+}
+
+async function flushQueue() {
+  if (online.sending) return;
+  online.sending = true;
+  while (online.sendQueue.length) {
+    const job = online.sendQueue.shift();
+    const code = online.code;
+    if (!code) break;
+    try {
+      await fetch("/api/rooms/" + code + "/action", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          playerId: online.playerId,
+          action: job.action,
+          payload: job.payload,
+        }),
+      });
+    } catch (e) { /* next state push re-syncs */ }
+  }
+  online.sending = false;
+}
+
+function onlineRoomGone() {
+  stopOnline();
+  screenHome();
+  homeError("ルームが終了しました（全員退出、またはサーバーが再起動されました）。");
+}
+
+/* ------------------------------------------------------------- 状態反映 --- */
+function applyRoomView(view, garbage) {
+  if (!view) return;
+  online.view = view;
+
+  if (!view.me) {
+    forgetRoom(view.code);
+    onlineRoomGone();
+    return;
+  }
+
+  // 受信したガベージを自分のフィールドへ（相殺はエンジン側が処理）
+  if (garbage > 0 && state.mode === "online" && state.status === "playing" && state.engine) {
+    scheduledGarbage.value.push({ t: 40, lines: garbage, from: "net" });
+    toast("💥 ガベージ +" + garbage + " を受けた", true);
+  }
+
+  if (view.status === "waiting") {
+    if (state.status !== "lobby") {
+      state.status = "lobby";
+      state.engine = null;
+      online.startedMatch = -1;
+      showGamePanels("lobby");
+    }
+    renderLobby(view);
+    return;
+  }
+
+  if (view.status === "playing") {
+    if (view.matchNo !== online.startedMatch) {
+      online.startedMatch = view.matchNo;
+      beginMatchFromRoom(view);
+      return;
+    }
+    if (state.status === "playing") renderOpponents(view);
+    return;
+  }
+
+  if (view.status === "finished") {
+    if (state.status === "playing" || state.status === "paused" || state.status === "count") {
+      finishMatchFromRoom(view);
+    } else {
+      renderLobby(view);
+    }
+  }
+}
+
+/* ----------------------------------------------------------------- 画面 --- */
+function showGamePanels(which) {
+  const board = document.getElementById("boardWrap");
+  const pad = document.getElementById("touchpad");
+  const lobby = document.getElementById("lobbyPanel");
+  const side = document.getElementById("battleSide");
+  document.body.classList.toggle("lobby-mode", which === "lobby");
+  const stripLobby = document.getElementById("opponentStrip");
+  if (which === "lobby" && stripLobby) {
+    stripLobby.innerHTML = "";
+    stripLobby.style.display = "none";
+  }
+  if (which === "lobby") {
+    if (board) board.style.display = "none";
+    if (pad) pad.style.display = "none";
+    if (lobby) lobby.style.display = "flex";
+    if (side) side.style.display = "none";
+  } else {
+    if (board) board.style.display = "";
+    if (pad) pad.style.display = "";
+    if (lobby) lobby.style.display = "none";
+    if (side) side.style.display = "";
+  }
+  el.overLayer.classList.remove("show");
+  el.overLayer.innerHTML = "";
+}
+
+function escapeHtml(text) {
+  return String(text)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function renderLobby(view) {
+  const panel = document.getElementById("lobbyPanel");
+  if (!panel) return;
+  if (!view) {
+    panel.innerHTML = '<p class="lobby-loading">ルームに接続中...</p>';
+    return;
+  }
+
+  const me = view.me;
+  const isHost = !!(me && me.isHost);
+  const canStart = isHost && view.players.length >= 2;
+  const isFinished = view.status === "finished";
+  const winner = view.players.filter(function (p) { return p.id === view.winnerId; })[0];
+
+  const playersHtml = view.players
+    .map(function (p) {
+      let label = "待機";
+      let cls = "wait";
+      if (p.id === view.winnerId) { label = "WIN"; cls = "win"; }
+      else if (p.inMatch && !p.alive) { label = "KO"; cls = "ko"; }
+      else if (p.inMatch && p.alive) { label = "生存"; cls = "alive"; }
+      return (
+        '<li class="lobby-player">' +
+          (p.isHost ? '<span class="crown" title="ホスト">👑</span>' : "") +
+          '<span class="lobby-name">' + escapeHtml(p.name) + "</span>" +
+          (me && p.id === me.id ? '<span class="you-tag">YOU</span>' : "") +
+          '<span class="lobby-status ' + cls + '">' + label + "</span>" +
+        "</li>"
+      );
+    })
+    .join("");
+
+  panel.innerHTML =
+    '<div class="lobby-card">' +
+      '<p class="lobby-title">' + (isFinished ? "試合終了" : "対戦ロビー") + "</p>" +
+      (isFinished
+        ? '<p class="lobby-sub">' + (winner ? escapeHtml(winner.name) + " の勝利！" : "勝者なし") + "</p>"
+        : '<p class="lobby-sub">招待コードを友達に共有してください</p><p class="lobby-code">' + view.code + "</p>") +
+      '<div class="lobby-actions">' +
+        '<button type="button" class="lobby-btn" id="btnCopyInvite">招待URLをコピー</button>' +
+        '<button type="button" class="lobby-btn ghost" id="btnLeaveRoom">退出</button>' +
+      "</div>" +
+      '<div class="lobby-players-wrap">' +
+        '<p class="lobby-players-title">PLAYERS (' + view.players.length + "/" + MAX_PLAYERS + ")</p>" +
+        '<ul class="lobby-players">' + playersHtml + "</ul>" +
+      "</div>" +
+      (isHost
+        ? '<button type="button" class="lobby-start" id="btnStartMatch"' +
+            (canStart ? "" : " disabled") + ">" + (isFinished ? "再戦を開始" : "対戦開始") + "</button>" +
+            (canStart ? "" : '<p class="lobby-hint">2人以上集まると開始できます</p>')
+        : '<p class="lobby-hint">ホストの開始を待っています…</p>') +
+      '<div class="lobby-rules">' +
+        "<p>ルール</p><ul>" +
+        "<li>ライン消去で相手に攻撃ラインが届く（受けるガベージは攻撃で相殺）</li>" +
+        "<li>Tスピン・Tスピンミニ・テトリス・B2B・コンボで攻撃力アップ</li>" +
+        "<li>最後まで生き残った人の勝ち（15秒通信が無いと脱落）</li>" +
+        "</ul></div>" +
+    "</div>";
+
+  const startBtn = document.getElementById("btnStartMatch");
+  if (startBtn) {
+    startBtn.addEventListener("click", function () {
+      sfx.unlock();
+      startBtn.disabled = true;
+      queueAction("start");
+    });
+  }
+
+  const copyBtn = document.getElementById("btnCopyInvite");
+  if (copyBtn) {
+    copyBtn.addEventListener("click", async function () {
+      const url = location.origin + location.pathname + "#room=" + view.code;
+      try {
+        await navigator.clipboard.writeText(url);
+        copyBtn.textContent = "コピーしました";
+        setTimeout(function () { copyBtn.textContent = "招待URLをコピー"; }, 1500);
+      } catch (e) {
+        homeError("招待URL: " + url);
+      }
+    });
+  }
+
+  const leaveBtn = document.getElementById("btnLeaveRoom");
+  if (leaveBtn) {
+    leaveBtn.addEventListener("click", function () {
+      queueAction("leave");
+      forgetRoom(view.code);
+      history.replaceState(null, "", location.pathname);
+      screenHome();
+    });
+  }
+}
+
+function renderOpponents(view) {
+  const list = document.getElementById("opponentList");
+  const wrap = document.getElementById("opponentPanel");
+  if (!list || !wrap) return;
+  const me = view.me;
+  const others = view.players.filter(function (p) {
+    return p.inMatch && (!me || p.id !== me.id);
+  });
+  const stripEl = document.getElementById("opponentStrip");
+  if (!others.length) {
+    wrap.style.display = "none";
+    if (stripEl) {
+      stripEl.innerHTML = "";
+      stripEl.style.display = "none";
+    }
+    return;
+  }
+  wrap.style.display = "";
+  const count = document.getElementById("opponentCount");
+  if (count) count.textContent = others.length + "人";
+
+  const markup = others
+    .map(function (p) {
+      return (
+        '<div class="opponent' + (p.alive ? "" : " dead") + '">' +
+          '<canvas class="opponent-cv" width="60" height="120" data-player="' + p.id + '"></canvas>' +
+          (p.alive ? "" : '<span class="opponent-ko">KO</span>') +
+          '<p class="opponent-name">' + escapeHtml(p.name) + "</p>" +
+          '<p class="opponent-score">' + p.score.toLocaleString() + " / ATK " + p.attackSent + "</p>" +
+        "</div>"
+      );
+    })
+    .join("");
+
+  list.innerHTML = markup;
+  const strip = document.getElementById("opponentStrip");
+  if (strip) {
+    strip.innerHTML = markup;
+    strip.style.display = "";
+  }
+  paintOpponentBoards(list, others);
+  if (strip) paintOpponentBoards(strip, others);
+}
+
+function paintOpponentBoards(root, players) {
+  players.forEach(function (p) {
+    const cv = root.querySelector('canvas[data-player="' + p.id + '"]');
+    if (!cv) return;
+    const ctx = cv.getContext("2d");
+    if (ctx) drawSnapshot(ctx, p.board, 6);
+  });
+}
+
+/* ----------------------------------------------------------- 試合の開始 --- */
+function beginMatchFromRoom(view) {
+  showGamePanels("game");
+  state.mode = "online";
+  state.status = "count";
+  state.seed = view.seed;
+  state.engine = new TetrisEngine(view.seed);
+  reported = false;
+  popupRef.value = null;
+  landFxRef.value = null;
+  flashRef.value = null;
+  shakeRef.value = null;
+  particlesRef.value = [];
+  pressedRef.value.clear();
+  pointersRef.value.clear();
+  gestureRef.value = null;
+  scheduledGarbage.value = [];
+  online.deadReported = false;
+  online.lastSnapshot = "";
+  hudAcc = 0;
+  snapAcc = 0;
+  last = performance.now();
+
+  el.overLayer.classList.remove("show");
+  el.overLayer.innerHTML = "";
+  el.popupLayer.innerHTML = "";
+  el.pauseModal.classList.remove("open");
+  if (el.touchpad) el.touchpad.style.display = "";
+  document.body.classList.add("battle");
+  updateHud(true);
+  renderOpponents(view);
+
+  let seen = false;
+  try { seen = !!localStorage.getItem(TUT_KEY); } catch (e) { seen = false; }
+  if (!seen) {
+    state.status = "paused";
+    showTutorial(true);
+  } else {
+    runCountdown();
+  }
+}
+
+function finishMatchFromRoom(view) {
+  state.status = "over";
+  const me = view.me;
+  const won = !!me && view.winnerId === me.id;
+  sfx.play(won ? "win" : "over");
+  el.pauseModal.classList.remove("open");
+  showOverlay(won, view);
+}
+
+/* -------------------------------------------------- スナップショット送信 --- */
+function startSnapshotLoop() {
+  if (online.snapshotTimer) clearInterval(online.snapshotTimer);
+  online.snapshotTimer = setInterval(function () {
+    if (state.mode !== "online" || state.status !== "playing" || !state.engine) return;
+    const eng = state.engine;
+    const snap = eng.snapshot();
+    const st = eng.stats();
+    const key = snap + "|" + st.score + "|" + st.lines + "|" + st.attackSent;
+    if (key === online.lastSnapshot) return;
+    online.lastSnapshot = key;
+    queueAction("state", {
+      board: snap,
+      score: st.score,
+      lines: st.lines,
+      attackSent: st.attackSent,
+    });
+  }, 250);
+}
+
+/* ------------------------------------------------------------------ setup --- */
+function newSeed() {
+  return Math.floor(Math.random() * 1999999999) + 1;
+}
+
+function startGame(mode) {
+  state.mode = mode;
+  state.status = "count";
+  state.seed = newSeed();
+  state.engine = new TetrisEngine(state.seed);
+  state.deadMatch = false;
+  advancedCheckAcc = 0;
+
+  reported = false;
+  popupRef.value = null;
+  landFxRef.value = null;
+  flashRef.value = null;
+  shakeRef.value = null;
+  particlesRef.value = [];
+  pressedRef.value.clear();
+  pointersRef.value.clear();
+  gestureRef.value = null;
+  scheduledGarbage.value = [];
+  hudAcc = 0;
+  snapAcc = 0;
+  last = performance.now();
+
+  el.overLayer.classList.remove("show");
+  el.overLayer.innerHTML = "";
+  el.popupLayer.innerHTML = "";
+  el.touchpad.style.display = "";
+  const soloStrip = document.getElementById("opponentStrip");
+  if (soloStrip) {
+    soloStrip.innerHTML = "";
+    soloStrip.style.display = "none";
+  }
+  document.body.classList.toggle("battle", mode === "online");
+  const modePill = document.getElementById("modePill");
+  if (modePill) modePill.textContent = mode === "online" ? "ルーム対戦" : "ソロ";
+  updateHud(true);
+
+  let seen = false;
+  try {
+    seen = !!localStorage.getItem(TUT_KEY);
+  } catch (e) {
+    seen = false;
+  }
+  if (!seen) {
+    state.status = "paused";
+    showTutorial(true);
+  } else {
+    runCountdown();
+  }
+}
+
+function bindGameHeader() {
+  const home = document.getElementById("btnHome");
+  if (home) {
+    home.addEventListener("click", function () {
+      if (state.mode === "online" && online.code) {
+        queueAction("leave");
+        forgetRoom(online.code);
+        history.replaceState(null, "", location.pathname);
+      }
+      screenHome();
+    });
+  }
+
+  const help = document.getElementById("btnHelp");
+  if (help) help.addEventListener("click", function () {
+    if (state.status === "playing" || state.status === "count") state.status = "paused";
+    showTutorial(false);
+  });
+
+  const sound = document.getElementById("btnSound");
+  if (sound) sound.addEventListener("click", function () {
+    sfx.toggle();
+    updateSoundButton();
+  });
+
+  const resume = document.getElementById("btnResume");
+  if (resume) resume.addEventListener("click", function () { resumeGame(); });
+
+  const retryPause = document.getElementById("btnRetryPause");
+  if (retryPause) retryPause.addEventListener("click", function () {
+    el.pauseModal.classList.remove("open");
+    if (state.mode === "online") {
+      state.status = "paused";
+      return;
+    }
+    startGame(state.mode);
+  });
+
+  const quit = document.getElementById("btnQuitPause");
+  if (quit) quit.addEventListener("click", function () {
+    el.pauseModal.classList.remove("open");
+    if (state.mode === "online" && online.code) {
+      queueAction("leave");
+      forgetRoom(online.code);
+      history.replaceState(null, "", location.pathname);
+    }
+    screenHome();
+  });
+
+  const over = document.getElementById("overLayer");
+  if (over) {
+    over.addEventListener("click", function (e) {
+      if (e.target === over && state.mode !== "online") {
+        el.overLayer.classList.remove("show");
+      }
+    });
+  }
+
+  document.addEventListener("visibilitychange", function () {
+    if (document.hidden && state.status === "playing" && state.mode === "solo") {
+      pauseGame();
+    }
+  });
+}
+
+function pauseGame() {
+  if (state.status !== "playing") return;
+  state.status = "paused";
+  el.pauseModal.classList.add("open");
+}
+
+function resumeGame() {
+  el.pauseModal.classList.remove("open");
+  if (state.mode === "online") {
+    if (state.engine && !state.engine.dead && !online.deadReported) {
+      state.status = "playing";
+      last = performance.now();
+    }
+    return;
+  }
+  if (state.engine && !state.engine.dead) {
+    state.status = "playing";
+    last = performance.now();
+  } else {
+    startGame(state.mode);
+  }
+}
+
+function updateSoundButton() {
+  const b = document.getElementById("btnSound");
+  if (!b) return;
+  b.textContent = sfx.muted ? "🔇 音 OFF" : "🔊 音 ON";
+  b.classList.toggle("on", !sfx.muted);
+}
+
+function runCountdown() {
+  state.status = "count";
+  let n = 3;
+  el.countNum.textContent = String(n);
+  el.countLayer.classList.add("show");
+  el.countNum.style.animation = "none";
+  void el.countNum.offsetWidth;
+  el.countNum.style.animation = "";
+  sfx.play("count");
+  if (countTimer) clearInterval(countTimer);
+  countTimer = setInterval(() => {
+    n--;
+    if (n <= 0) {
+      clearInterval(countTimer);
+      countTimer = null;
+      sfx.play("go");
+      el.countLayer.classList.remove("show");
+      state.status = "playing";
+      last = performance.now();
+    } else {
+      el.countNum.textContent = String(n);
+      el.countNum.style.animation = "none";
+      void el.countNum.offsetWidth;
+      el.countNum.style.animation = "";
+      sfx.play("count");
+    }
+  }, 650);
+}
+
+function beginFromTutorial() {
+  sfx.unlock();
+  try {
+    localStorage.setItem(TUT_KEY, "1");
+  } catch (e) {
+    /* ignore */
+  }
+  hideTutorial();
+  if (state.mode === "online") {
+    if (!state.engine) {
+      screenHome();
+      return;
+    }
+    if (state.status === "paused" && !state.engine.dead) {
+      runCountdown();
+      return;
+    }
+    return;
+  }
+  if (state.status === "menu" || !state.engine) {
+    startGame(state.mode);
+    return;
+  }
+  // returning to a paused game
+  if (state.status === "paused" && state.engine && !state.engine.dead) {
+    if (el.countLayer.classList.contains("show")) return;
+    state.status = "playing";
+    last = performance.now();
+  }
+}
+
+/* ------------------------------------------------------------------- loop --- */
+function loop(now) {
+  requestAnimationFrame(loop);
+  const dt = Math.min(100, now - last);
+  last = now;
+
+  checkAdvanced(now);
+
+  if (!state.engine) {
+    drawEmptyFrame();
+    return;
+  }
+
+  const eng = state.engine;
+  const playing = state.status === "playing";
+
+  if (playing) {
+    // delayed garbage (battle)
+    if (scheduledGarbage.value.length) {
+      const keep = [];
+      for (const g of scheduledGarbage.value) {
+        g.t -= dt;
+        if (g.t <= 0) {
+          if (!eng.dead) {
+            eng.addGarbage(g.lines);
+            toast("💥 " + g.lines + " ライン被弾", true);
+          }
+        } else {
+          keep.push(g);
+        }
+      }
+      scheduledGarbage.value = keep;
+    }
+    eng.update(dt);
+  }
+
+  const events = eng.drainEvents();
+  const flush = events.length > 0;
+  const hasClear = events.some((ev) => ev.type === "clear" && ev.lines > 0);
+  for (const ev of events) handleEvent(ev, now, hasClear);
+
+  draw(now, dt, flush);
+  updateHud(flush, dt);
+  checkMatchEnd();
+}
+
+function handleEvent(ev, now, hasClear) {
+  const eng = state.engine;
+  if (ev.type === "land") {
+    if (!hasClear) sfx.play("harddrop");
+    if (navigator.vibrate) navigator.vibrate(10);
+    const visible = ev.cells
+      .filter((c) => c[1] >= HIDDEN_ROWS)
+      .map((c) => [c[0], c[1] - HIDDEN_ROWS]);
+    landFxRef.value = { t0: now, cells: visible };
+    shakeRef.value = { until: now + 130, mag: ev.distance >= 8 ? 4 : 2 };
+    const filled = new Set(visible.map((c) => c[0] + "," + c[1]));
+    for (const c of visible) {
+      if (filled.has(c[0] + "," + (c[1] + 1))) continue;
+      burst((c[0] + 0.5) * CELL, (c[1] + 1) * CELL, PIECE_COLORS[ev.piece], 3);
+      burst((c[0] + 0.5) * CELL, (c[1] + 1) * CELL, "#ffffff", 1);
+    }
+    return;
+  }
+
+  if (ev.type === "clear") {
+    if (ev.lines > 0 || ev.spin !== "none") {
+      popupRef.value = makePopup(ev, now);
+    }
+    if (ev.lines > 0) {
+      spawnSparks(ev.rows);
+      flashRef.value = {
+        t0: now,
+        rows: ev.rows,
+        rgb: ev.spin !== "none" ? "232,121,249" : "255,255,255",
+      };
+      if (ev.spin !== "none") {
+        sfx.play("tspin");
+        shakeRef.value = { until: now + 220, mag: 6 };
+      } else if (ev.lines >= 4) {
+        sfx.play("tetris");
+        shakeRef.value = { until: now + 220, mag: 6 };
+      } else {
+        sfx.play("clear");
+      }
+    } else if (ev.spin !== "none") {
+      sfx.play("tspin");
+    }
+    return;
+  }
+
+  if (ev.type === "attack") {
+    sfx.play("attack");
+    if (state.mode === "online") {
+      toast("⚡ 攻撃 +" + ev.lines);
+      queueAction("attack", { lines: ev.lines });
+    }
+    return;
+  }
+
+  if (ev.type === "garbage") {
+    sfx.play("garbage");
+    shakeRef.value = { until: now + 180, mag: 4 };
+    flashRef.value = {
+      t0: now,
+      rows: Array.from({ length: ev.lines }, (_, i) => VISIBLE_ROWS - 1 - i),
+      rgb: "248,113,113",
+    };
+  }
+}
+
+
+function checkMatchEnd() {
+  if (!state.engine || state.status === "over" || state.status === "menu") return;
+  if (state.status !== "playing" && state.status !== "paused") return;
+  if (!state.engine.dead) return;
+
+  if (state.mode === "online") {
+    // Report once; the server decides the winner and pushes "finished".
+    if (online.deadReported) return;
+    online.deadReported = true;
+    const st = state.engine.stats();
+    queueAction("dead", { score: st.score, lines: st.lines, attackSent: st.attackSent });
+    state.status = "paused";
+    el.overLayer.innerHTML =
+      '<p class="over-title lose">脱落</p>' +
+      '<p class="over-detail">観戦モードで試合を見届けましょう</p>';
+    el.overLayer.classList.add("show");
+    el.touchpad.style.display = "none";
+    saveBest();
+    return;
+  }
+
+  // Solo: game over as soon as the stack tops out.
+  state.status = "over";
+  sfx.play("over");
+  saveBest();
+  showOverlay(false);
+}
+
+function showOverlay(won, roomView) {
+  const eng = state.engine;
+  const st = eng.stats();
+  const isOnline = state.mode === "online";
+  const title = won ? "YOU WIN!" : isOnline ? "YOU LOSE" : "GAME OVER";
+  const cls = won ? "win" : isOnline ? "lose" : "";
+
+  const winner = roomView
+    ? roomView.players.find(function (p) { return p.id === roomView.winnerId; })
+    : null;
+
+  el.overLayer.innerHTML =
+    '<p class="over-title ' + cls + '">' + title + "</p>" +
+    (winner ? '<p class="over-detail">🏆 ' + escapeHtml(winner.name) + " の勝利！</p>" : "") +
+    '<p class="over-detail">スコア ' + st.score.toLocaleString() +
+    " ／ " + st.lines + " ライン ／ 攻撃 " + st.attackSent + "</p>" +
+    (isOnline
+      ? '<button class="over-btn" id="btnBackLobby">ロビーに戻る</button>'
+      : '<button class="over-btn" id="btnRetry">もう一度プレイ</button>') +
+    '<button class="over-btn ghost" id="btnHelpOver">操作説明</button>' +
+    (isOnline ? "" : '<button class="over-btn ghost" id="btnHomeOver">ホームへ戻る</button>');
+
+  el.touchpad.style.display = "none";
+  el.overLayer.classList.add("show");
+  el.countLayer.classList.remove("show");
+
+  const retry = document.getElementById("btnRetry");
+  if (retry) retry.addEventListener("click", function () { startGame(state.mode); });
+
+  const lobby = document.getElementById("btnBackLobby");
+  if (lobby) {
+    lobby.addEventListener("click", function () {
+      el.overLayer.classList.remove("show");
+      el.overLayer.innerHTML = "";
+      state.status = "lobby";
+      state.engine = null;
+      online.startedMatch = -1;
+      showGamePanels("lobby");
+      if (online.view) renderLobby(online.view);
+    });
+  }
+
+  const help = document.getElementById("btnHelpOver");
+  if (help) help.addEventListener("click", function () { showTutorial(false); });
+
+  const homeBtn = document.getElementById("btnHomeOver");
+  if (homeBtn) homeBtn.addEventListener("click", function () { screenHome(); });
+}
+
+function saveBest() {
+  const score = state.engine ? state.engine.score : 0;
+  if (score > state.best) {
+    state.best = score;
+    try {
+      localStorage.setItem(STORE.best, String(score));
+    } catch (e) {
+      /* ignore */
+    }
+    updateBest();
+  }
+}
+
+/* ----------------------------------------------------------------- draw --- */
+function makePopup(ev, now) {
+  const subs = [];
+  if (ev.b2b) subs.push("B2B");
+  if (ev.combo >= 1) subs.push(ev.combo + 1 + "コンボ");
+  if (ev.attack > 0) subs.push("攻撃 +" + ev.attack);
+  if (ev.perfect) {
+    return { at: now, title: "パーフェクトクリア", sub: subs.join(" / "), tone: "pc" };
+  }
+  const tone = ev.spin !== "none" ? "spin" : ev.lines >= 4 ? "quad" : "clear";
+  return { at: now, title: ev.name, sub: subs.join(" / "), tone: tone };
+}
+
+function burst(x, y, color, count) {
+  const ps = particlesRef.value;
+  for (let k = 0; k < count && ps.length < 240; k++) {
+    ps.push({
+      x: x,
+      y: y,
+      vx: (Math.random() - 0.5) * 4,
+      vy: -Math.random() * 3 - 0.5,
+      life: 260 + Math.random() * 180,
+      max: 440,
+      size: 2 + Math.random() * 3,
+      color: color,
+    });
+  }
+}
+
+function spawnSparks(rows) {
+  const ps = particlesRef.value;
+  for (const row of rows) {
+    for (let x = 0; x < COLS; x++) {
+      for (let k = 0; k < 2; k++) {
+        if (ps.length >= 240) return;
+        ps.push({
+          x: (x + 0.5) * CELL,
+          y: (row + 0.5) * CELL,
+          vx: (Math.random() - 0.5) * 7,
+          vy: -Math.random() * 5 - 1,
+          life: 500 + Math.random() * 250,
+          max: 700,
+          size: 3 + Math.random() * 4,
+          color: SPARK_COLORS[Math.floor(Math.random() * SPARK_COLORS.length)],
+        });
+      }
+    }
+  }
+}
+
+function draw(now, dt, flush) {
+  const eng = state.engine;
+  if (!eng || !mainCtx) return;
+
+  drawBoard(mainCtx, eng.board, CELL, eng.dead ? null : eng.active, eng.ghostY(), eng.renderY());
+
+  const fx = landFxRef.value;
+  if (fx) {
+    const t = now - fx.t0;
+    if (t > LAND_FX_MS) landFxRef.value = null;
+    else {
+      mainCtx.fillStyle = "rgba(255,255,255," + (0.5 * (1 - t / LAND_FX_MS)).toFixed(3) + ")";
+      for (const c of fx.cells) mainCtx.fillRect(c[0] * CELL, c[1] * CELL, CELL, CELL);
+    }
+  }
+
+  const flash = flashRef.value;
+  if (flash) {
+    const t = now - flash.t0;
+    if (t > 170) flashRef.value = null;
+    else {
+      mainCtx.fillStyle = "rgba(" + flash.rgb + "," + ((1 - t / 170) * 0.55).toFixed(3) + ")";
+      for (const row of flash.rows) mainCtx.fillRect(0, row * CELL, COLS * CELL, CELL);
+    }
+  }
+
+  const ps = particlesRef.value;
+  for (let i = ps.length - 1; i >= 0; i--) {
+    const p = ps[i];
+    p.life -= dt;
+    if (p.life <= 0) {
+      ps.splice(i, 1);
+      continue;
+    }
+    p.x += p.vx * (dt / 16);
+    p.y += p.vy * (dt / 16);
+    p.vy += 0.22 * (dt / 16);
+    mainCtx.globalAlpha = Math.max(0, p.life / p.max);
+    mainCtx.fillStyle = p.color;
+    mainCtx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size);
+  }
+  mainCtx.globalAlpha = 1;
+
+  const shake = shakeRef.value;
+  if (shake && now < shake.until) {
+    el.board.style.transform =
+      "translate(" + (Math.random() * 2 - 1) * shake.mag + "px, " + (Math.random() * 2 - 1) * shake.mag + "px)";
+  } else if (shake) {
+    el.board.style.transform = "";
+    shakeRef.value = null;
+  }
+
+  if (holdCtx) drawPreview(holdCtx, eng.hold, PREVIEW_CELL, eng.canHold ? 1 : 0.35);
+  for (let i = 0; i < 5; i++) {
+    if (nextCtxs[i]) drawPreview(nextCtxs[i], eng.queue[i] || null, PREVIEW_CELL);
+  }
+  el.holdCard.classList.toggle("spent", !eng.canHold);
+
+}
+
+/* ------------------------------------------------------------------ HUD --- */
+function updateHud(force, dt) {
+  if (!state.engine) return;
+  hudAcc += dt === undefined ? 100 : dt;
+  const pop = popupRef.value;
+  if (pop && !pop.shown && performance.now() - pop.at < POPUP_MS) {
+    pop.shown = true;
+    showPopup(pop);
+  }
+  if (!force && hudAcc < 100) return;
+  hudAcc = 0;
+  const st = state.engine.stats();
+  el.hudScore.textContent = st.score.toLocaleString();
+  el.hudLines.textContent = String(st.lines);
+  el.hudLevel.textContent = String(st.level);
+  el.hudAttack.textContent = String(st.attackSent);
+  el.hudB2b.textContent = "x" + (st.b2b >= 1 ? st.b2b : 0);
+  el.hudCombo.textContent = String(st.combo >= 1 ? st.combo + 1 : 0);
+
+  const scheduled = scheduledGarbage.value.reduce((a, g) => a + g.lines, 0);
+  const pending = st.pending + scheduled;
+  el.gaugeFill.style.height = Math.min(100, (pending / 12) * 100) + "%";
+  el.softPill.classList.toggle("show", !!st.soft || (state.engine.softDrop && state.status === "playing"));
+}
+
+/* ---------------------------------------------------------------- popups --- */
+function showPopup(popup) {
+  const div = document.createElement("div");
+  div.className = "popup " + popup.tone;
+  div.innerHTML =
+    '<p class="title">' + popup.title + '</p>' + (popup.sub ? '<p class="sub">' + popup.sub + "</p>" : "");
+  el.popupLayer.appendChild(div);
+  setTimeout(() => {
+    if (div.parentNode) div.parentNode.removeChild(div);
+  }, POPUP_MS);
+}
+
+function toast(text, incoming) {
+  const div = document.createElement("div");
+  div.className = "toast" + (incoming ? " in" : "");
+  div.textContent = text;
+  el.toastLayer.appendChild(div);
+  setTimeout(() => {
+    if (div.parentNode) div.parentNode.removeChild(div);
+  }, 1600);
+}
+
+/* ---------------------------------------------------------------- input --- */
+function engineReady() {
+  return state.engine && state.status === "playing";
+}
+
+function syncDir() {
+  const e = state.engine;
+  if (!e) return;
+  const p = pressedRef.value;
+  e.setDir(p.has("L") ? -1 : p.has("R") ? 1 : 0);
+  e.setSoftDrop(p.has("D"));
+}
+
+function press(key, on) {
+  if (on && !engineReady()) return;
+  if (on) pressedRef.value.add(key);
+  else pressedRef.value.delete(key);
+  syncDir();
+}
+
+function doHardDrop() {
+  const e = state.engine;
+  if (!e || !engineReady()) return;
+  if (e.hardDrop() && navigator.vibrate) navigator.vibrate(6);
+}
+
+function act(a) {
+  const e = state.engine;
+  if (!e || !engineReady()) return;
+  switch (a) {
+    case "CW":
+      if (e.rotate(1)) sfx.play("rotate");
+      break;
+    case "CCW":
+      if (e.rotate(-1)) sfx.play("rotate");
+      break;
+    case "180":
+      if (e.rotate(2)) sfx.play("rotate");
+      break;
+    case "HARD":
+      doHardDrop();
+      break;
+    case "HOLD": {
+      const before = e.hold;
+      e.holdPiece();
+      if (e.hold !== before) {
+        sfx.play("hold");
+        if (navigator.vibrate) navigator.vibrate(15);
+        renderTutorialIfOpen();
+      }
+      break;
+    }
+    default:
+      break;
+  }
+}
+
+function renderTutorialIfOpen() {
+  if (el.tutorialModal.classList.contains("open")) renderTutorial();
+}
+
+function bindEvents() {
+  /* keyboard */
+  const keyMap = { ArrowLeft: "L", ArrowRight: "R", ArrowDown: "D" };
+  const actionMap = {
+    ArrowUp: "CW",
+    KeyX: "CW",
+    KeyZ: "CCW",
+    ControlLeft: "CCW",
+    KeyA: "180",
+    Space: "HARD",
+    Enter: "HARD",
+    KeyC: "HOLD",
+    ShiftLeft: "HOLD",
+    ShiftRight: "HOLD",
+  };
+  window.addEventListener("keydown", (ev) => {
+    if (ev.target instanceof HTMLInputElement || ev.target instanceof HTMLTextAreaElement) return;
+    if (ev.code === "KeyP" || ev.code === "Escape") {
+      ev.preventDefault();
+      togglePause();
+      return;
+    }
+    const k = keyMap[ev.code];
+    if (k) {
+      ev.preventDefault();
+      if (!ev.repeat) press(k, true);
+      return;
+    }
+    const a = actionMap[ev.code];
+    if (a) {
+      ev.preventDefault();
+      if (!ev.repeat) act(a);
+    }
+  });
+  window.addEventListener("keyup", (ev) => {
+    const k = keyMap[ev.code];
+    if (k) press(k, false);
+  });
+  window.addEventListener("blur", () => {
+    pressedRef.value.clear();
+    syncDir();
+    if (state.status === "playing") togglePause(true);
+  });
+
+  /* touch buttons */
+  el.touchpad.querySelectorAll("button").forEach((btn) => {
+    const key = btn.getAttribute("data-btn");
+    const isHoldKey = key === "L" || key === "R" || key === "D";
+    btn.addEventListener("pointerdown", (ev) => {
+      ev.preventDefault();
+      sfx.unlock();
+      if (isHoldKey) press(key, true);
+      else act(key);
+    });
+    const up = () => {
+      if (isHoldKey) press(key, false);
+    };
+    btn.addEventListener("pointerup", up);
+    btn.addEventListener("pointerleave", up);
+    btn.addEventListener("pointercancel", up);
+    btn.addEventListener("contextmenu", (ev) => ev.preventDefault());
+  });
+
+  /* playfield gestures */
+  const board = el.boardWrap;
+  board.addEventListener("pointerdown", onBoardDown);
+  board.addEventListener("pointermove", onBoardMove);
+  board.addEventListener("pointerup", onBoardUp);
+  board.addEventListener("pointercancel", onBoardCancel);
+  board.addEventListener("contextmenu", (ev) => ev.preventDefault());
+
+  window.addEventListener("pointerup", () => {
+    if (gestureRef.value || pressedRef.value.has("D")) return;
+    if (state.engine) state.engine.setSoftDrop(false);
+  });
+
+  /* buttons */
+  el.btnHelp.addEventListener("click", () => {
+    sfx.unlock();
+    showTutorial(false);
+  });
+  el.btnSound.addEventListener("click", () => {
+    sfx.unlock();
+    state.muted = !state.muted;
+    sfx.setMuted(state.muted);
+    updateSoundButton();
+  });
+  el.tutStart.addEventListener("click", beginFromTutorial);
+  el.btnResume.addEventListener("click", () => togglePause(false));
+  el.btnRetryPause.addEventListener("click", () => {
+    el.pauseModal.classList.remove("open");
+    startGame(state.mode);
+  });
+  if (el.btnQuitPause) {
+    el.btnQuitPause.addEventListener("click", () => {
+      el.pauseModal.classList.remove("open");
+      screenHome();
+    });
+  }
+  /* leave the page: stop sounds */
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden && state.status === "playing") togglePause(true);
+  });
+}
+
+function togglePause(forcePause) {
+  if (!state.engine) return;
+  if (state.status === "over" || state.status === "count") return;
+  if (el.tutorialModal.classList.contains("open")) return;
+  const pause = forcePause === true || state.status === "playing";
+  if (pause) {
+    if (state.status !== "playing") return;
+    state.status = "paused";
+    el.pauseModal.classList.add("open");
+    pressedRef.value.clear();
+    if (state.engine) {
+      state.engine.setDir(0);
+      state.engine.setSoftDrop(false);
+    }
+  } else {
+    if (state.status !== "paused") return;
+    el.pauseModal.classList.remove("open");
+    state.status = "playing";
+    last = performance.now();
+  }
+}
+
+/* ------------------------------------------------------- board gestures --- */
+function cellPx() {
+  const w = el.boardWrap.getBoundingClientRect().width || 300;
+  return w / COLS;
+}
+
+function clearLongPress(g) {
+  if (g.longTimer != null) {
+    clearTimeout(g.longTimer);
+    g.longTimer = null;
+  }
+}
+
+function onBoardDown(ev) {
+  if (!engineReady()) return;
+  ev.currentTarget.setPointerCapture(ev.pointerId);
+  pointersRef.value.add(ev.pointerId);
+  const current = gestureRef.value;
+  if (pointersRef.value.size >= 2) {
+    if (current) {
+      current.twoFinger = true;
+      clearLongPress(current);
+    }
+    return;
+  }
+  const gesture = {
+    state: gestureStart(ev.clientX, ev.clientY, performance.now()),
+    twoFinger: false,
+    longPressed: false,
+    longTimer: null,
+  };
+  gestureRef.value = gesture;
+  gesture.longTimer = setTimeout(() => {
+    gesture.longTimer = null;
+    if (gestureRef.value !== gesture || gesture.twoFinger || gesture.state.intent !== "pending") return;
+    gesture.longPressed = true;
+    act("HOLD");
+  }, LONG_PRESS_MS);
+}
+
+function onBoardMove(ev) {
+  const g = gestureRef.value;
+  const en = state.engine;
+  if (!g || !en || g.twoFinger || !engineReady()) return;
+  const now = performance.now();
+  const r = gestureMove(g.state, ev.clientX, ev.clientY, now, cellPx());
+  g.state = r.state;
+  if (g.state.maxMove > 12) clearLongPress(g);
+  if (r.softOn) en.setSoftDrop(true);
+  if (r.steps !== 0) {
+    const dir = r.steps > 0 ? 1 : -1;
+    let moved = false;
+    for (let i = 0; i < Math.abs(r.steps); i++) moved = en.move(dir) || moved;
+    if (moved && now - lastMoveSfx.value > 50) {
+      lastMoveSfx.value = now;
+      sfx.play("move");
+    }
+  }
+}
+
+function onBoardUp(ev) {
+  pointersRef.value.delete(ev.pointerId);
+  const g = gestureRef.value;
+  const en = state.engine;
+  if (!g || !en) return;
+  clearLongPress(g);
+  gestureRef.value = null;
+  if (g.state.intent === "v") en.setSoftDrop(pressedRef.value.has("D"));
+  if (!engineReady() || g.longPressed) return;
+
+  if (g.twoFinger) {
+    const quick = performance.now() - g.state.startT < 400;
+    if (g.state.maxMove <= 14 && quick) act("CCW");
+    return;
+  }
+
+  const release = gestureEnd(g.state, ev.clientX, ev.clientY, performance.now(), cellPx());
+  if (release === "flickDown") act("HARD");
+  else if (release === "flickUp") act("HOLD");
+  else if (release === "tap") act("CW");
+}
+
+function onBoardCancel(ev) {
+  pointersRef.value.delete(ev.pointerId);
+  const g = gestureRef.value;
+  if (g) clearLongPress(g);
+  gestureRef.value = null;
+  if (state.engine) state.engine.setSoftDrop(pressedRef.value.has("D"));
+}
+
+/* -------------------------------------------------------- advanced unlock --- */
+let advancedCheckAcc = 0;
+function checkAdvanced(now) {
+  if (state.advanced || !state.engine || state.status !== "playing") return;
+  if (now - advancedCheckAcc < 120 && advancedCheckAcc !== 0) return;
+  advancedCheckAcc = now;
+  if (state.engine.pieces >= ADV_PIECES) {
+    state.advanced = true;
+    try {
+      localStorage.setItem(TUT_ADV_KEY, "1");
+    } catch (e) {
+      /* ignore */
+    }
+    updateHints();
+    toast("🔓 応用操作を解放！（操作説明へ）");
+    sfx.play("go");
+    renderTutorialIfOpen();
+  }
+}
+
+/* --------------------------------------------------------------- bootstrap --- */
+init();
+
+
+</script>
+</body>
+</html>
