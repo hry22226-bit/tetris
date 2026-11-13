@@ -2,13 +2,22 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
 <meta name="theme-color" content="#020617" />
 <title>入入（にゅうにゅう）｜Tスピン対戦テトリス</title>
 <style>
   *, *::before, *::after { box-sizing: border-box; }
 
-  html, body { margin: 0; padding: 0; min-height: 100%; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    min-height: 100%;
+    /* stop double-tap zoom / pinch zoom and the grey tap highlight while playing */
+    touch-action: manipulation;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+  }
 
   body {
     background-color: #020617;
@@ -238,6 +247,8 @@
     flex-shrink: 0;
     width: min(calc(100vw - 9.5rem), 40svh, 380px);
     touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
   }
   body.battle .board-wrap { width: min(calc(100vw - 10.2rem), 40svh, 320px); }
   body.battle .col { width: 104px; }
@@ -405,6 +416,7 @@
     transition: transform .08s, background .08s;
   }
   .tbtn:active { background: #7c3aed; transform: scale(.95); }
+  .tbtn.pressed { transform: scale(.95); filter: brightness(1.25); }
   .tbtn.accent {
     border: 0;
     background: linear-gradient(to bottom, #d946ef, #7c3aed);
@@ -595,6 +607,44 @@
   .sr-only {
     position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
     overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+  }
+
+  /* ==================== T-spin assist ==================== */
+  .tspin-hint {
+    display: none;
+    flex: 0 0 auto;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    white-space: nowrap;
+    gap: 5px;
+    min-width: 0;
+    margin: 4px auto 0;
+    border-radius: 999px;
+    border: 1px solid rgba(240, 171, 252, .55);
+    background: rgba(124, 58, 237, .28);
+    color: #f5d0fe;
+    padding: 3px 11px;
+    font-size: 10.5px;
+    font-weight: 900;
+    letter-spacing: .02em;
+    box-shadow: 0 0 14px rgba(217, 70, 239, .35);
+    pointer-events: none;
+    animation: spinPulse 1.1s ease-in-out infinite;
+  }
+  .tspin-hint.show { display: inline-flex; }
+  .tspin-hint .spin-arrow { font-size: 12px; line-height: 1; }
+  .tspin-hint span:last-child { writing-mode: horizontal-tb; white-space: nowrap; }
+  .tspin-hint.tst {
+    border-color: rgba(251, 191, 36, .8);
+    background: rgba(251, 191, 36, .22);
+    color: #fde68a;
+    box-shadow: 0 0 18px rgba(251, 191, 36, .45);
+    font-size: 11.5px;
+  }
+  @keyframes spinPulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.045); }
   }
 
   /* ==================== online room ==================== */
@@ -996,6 +1046,8 @@
           <div id="overLayer"></div>
         </div>
 
+        <div class="tspin-hint" id="tspinHint" style="display:none" aria-live="polite"></div>
+
         <aside class="col">
           <div class="card">
             <p class="mini-label">NEXT</p>
@@ -1344,7 +1396,9 @@ class TetrisEngine {
       this.gravityAcc -= interval;
       if (!this.fits(a.type, a.rot, a.x, a.y + 1)) break;
       a.y++;
-      this.lastAction = "move";
+      // Gravity / soft drop must NOT cancel the T-spin state: only a horizontal
+      // move does (see move()). Otherwise every rotated T that falls one row
+      // would silently stop counting as a spin.
       if (this.softDrop) this.score += 1;
     }
   }
@@ -1406,7 +1460,7 @@ class TetrisEngine {
     while (this.fits(a.type, a.rot, a.x, a.y + 1)) a.y++;
     const distance = a.y - fromY;
     if (distance > 0) {
-      this.lastAction = "move";
+      // Keep the rotation state: a hard drop after rotating still counts as a spin.
       this.score += distance * 2;
       const dur = Math.min(DROP_MAX_MS, DROP_MIN_MS + distance * DROP_PER_ROW_MS);
       this.dropAnim = { fromY: fromY, toY: a.y, t: 0, dur: dur };
@@ -1707,10 +1761,11 @@ function thresholds(cell) {
   return {
     horizontal: Math.max(12, cell * 0.5),
     vertical: Math.max(24, cell * 1.2),
-    tap: 12,
+    // タップ判定は指のわずかなズレを許容する（12px だと回転が出にくかった）
+    tap: Math.max(18, cell * 0.7),
     flickDown: Math.max(56, cell * 2.6),
     flickUp: Math.max(50, cell * 2.2),
-    tapMs: 300,
+    tapMs: 360,
     flickMs: 300,
     flickSoftMs: 180,
     holdMs: 500,
@@ -1733,6 +1788,7 @@ function gestureMove(s, x, y, t, cell) {
       next.intent = "h";
       next.anchorX = s.startX;
     } else if (dy >= th.vertical && dy > ax * 2) {
+      // 意図せぬソフトドロップで回転が消えないよう、しっかり下げた時だけ発動
       next.intent = "v";
       next.softT = t;
       softOn = true;
@@ -1760,7 +1816,9 @@ function gestureEnd(s, x, y, t, cell) {
 
   if (dy >= th.flickDown && dy > ax * 2 && dur <= th.flickMs && softRecent) return "flickDown";
   if (s.intent === "pending" && -dy >= th.flickUp && -dy > ax * 2 && dur <= th.holdMs) return "flickUp";
-  if (s.intent === "pending" && s.maxMove <= th.tap && dur <= th.tapMs) return "tap";
+  // タップ: 多少動いていても、速くて小さな操作なら回転とみなす
+  if (s.maxMove <= th.tap && dur <= th.tapMs) return "tap";
+  if (s.maxMove <= th.tap * 1.6 && dur <= th.tapMs * 0.8 && dy > -10) return "tap";
   return "none";
 }
 
@@ -2055,6 +2113,7 @@ const scheduledGarbage = { value: [] };
 let last = 0;
 let hudAcc = 0;
 let snapAcc = 0;
+let spinHintAcc = 0;
 let reported = false;
 let countTimer = null;
 
@@ -2130,6 +2189,7 @@ function init() {
   if (homeHost) homeHost.replaceWith(buildHome());
 
   bindEvents();
+  blockDoubleTapZoom();
   bindHome();
   bindGameHeader();
   drawEmptyFrame();
@@ -3128,6 +3188,116 @@ function startGame(mode) {
   }
 }
 
+/* ---------------------------------------------------------------------------
+ * Tスピン・アシスト
+ *   「今の形でTスピンが狙えるか」「どの回転でTSTになるか」をその場で判定して
+ *   画面に出す。判定ロジックは本物（3-corner + 実際のキック結果）を使う。
+ * ------------------------------------------------------------------------- */
+function tspinProbe() {
+  const eng = state.engine;
+  if (!eng || !eng.active || state.status !== "playing") return null;
+  if (eng.active.type !== "T") return null;
+
+  const a = eng.active;
+  const results = [];
+  for (const dir of [1, -1, 2]) {
+    // 回転後の姿勢をエンジンと同じ手順で求める（キック込み）
+    const to = (a.rot + dir + 4) % 4;
+    const key = a.rot + ">" + to;
+    const tests = dir === 2 ? KICK_180 : JLSTZ_KICKS[key];
+    for (let i = 0; i < tests.length; i++) {
+      const nx = a.x + tests[i][0];
+      const ny = a.y - tests[i][1];
+      if (!eng.fits("T", to, nx, ny)) continue;
+      // この姿勢で接地するまで落として、スピン判定と消去数を調べる
+      const probe = {
+        rot: to,
+        x: nx,
+        y: ny,
+        dir: dir,
+        kick: i,
+      };
+      let py = ny;
+      while (probe.y + 1 <= 21 && canPlaceT(eng, to, nx, probe.y + 1)) probe.y++;
+      const spin = evalSpinAt(eng, to, nx, probe.y);
+      const rows = rowsClearedAt(eng, to, nx, probe.y);
+      if (spin !== "none" || rows > 0) {
+        results.push({ rot: to, dir: dir, kick: i, spin: spin, rows: rows, y: probe.y, x: nx });
+      }
+      break; // 最初に成立したキックだけ採用（エンジンと同じ）
+    }
+  }
+  return results;
+}
+
+function canPlaceT(eng, rot, x, y) {
+  for (const off of STATE_OFFSETS.T[rot]) {
+    const nx = x + off[1];
+    const ny = y + off[0];
+    if (nx < 0 || nx >= COLS || ny < 0 || ny >= ROWS) return false;
+    if (eng.board[ny][nx] !== ".") return false;
+  }
+  return true;
+}
+
+function evalSpinAt(eng, rot, x, y) {
+  const cx = x + 1;
+  const cy = y + 1;
+  const blocked = (bx, by) =>
+    bx < 0 || bx >= COLS || by < 0 || by >= ROWS || eng.board[by][bx] !== ".";
+  const tl = blocked(cx - 1, cy - 1);
+  const tr = blocked(cx + 1, cy - 1);
+  const bl = blocked(cx - 1, cy + 1);
+  const br = blocked(cx + 1, cy + 1);
+  if ([tl, tr, bl, br].filter(Boolean).length < 3) return "none";
+  let frontBoth;
+  switch (rot % 4) {
+    case 0: frontBoth = tl && tr; break;
+    case 1: frontBoth = tr && br; break;
+    case 2: frontBoth = bl && br; break;
+    default: frontBoth = tl && bl;
+  }
+  return frontBoth ? "full" : "mini";
+}
+
+function rowsClearedAt(eng, rot, x, y) {
+  const occupied = new Set();
+  for (const off of STATE_OFFSETS.T[rot]) occupied.add((y + off[0]) + "," + (x + off[1]));
+  let rows = 0;
+  for (let ry = 0; ry < ROWS; ry++) {
+    let full = true;
+    for (let rx = 0; rx < COLS; rx++) {
+      if (eng.board[ry][rx] === "." && !occupied.has(ry + "," + rx)) { full = false; break; }
+    }
+    if (full) rows++;
+  }
+  return rows;
+}
+
+function updateTspinHint() {
+  const box = document.getElementById("tspinHint");
+  if (!box) return;
+  if (state.mode !== "online" && state.mode !== "solo") { box.style.display = "none"; return; }
+  const r = tspinProbe();
+  if (!r || !r.length) { box.style.display = "none"; return; }
+  // 一番強い結果を表示
+  const best = r.slice().sort(function (p, q) {
+    const rank = (v) => (v.spin === "full" ? 100 : v.spin === "mini" ? 50 : 0) + v.rows * 10;
+    return rank(q) - rank(p);
+  })[0];
+  if (best.spin === "none" && best.rows < 2) { box.style.display = "none"; return; }
+  const label =
+    best.spin === "full"
+      ? ["Tスピン", "Tスピンシングル", "Tスピンダブル", "Tスピントリプル"][best.rows] || "Tスピン"
+      : best.spin === "mini"
+        ? "Tスピンミニ"
+        : best.rows + "ライン";
+  const arrow = best.dir === 1 ? "⟳" : best.dir === -1 ? "⟲" : "180°";
+  box.innerHTML = '<span class="spin-arrow">' + arrow + "</span><span>" + label + "</span>";
+  box.className = "tspin-hint show" + (best.rows >= 3 ? " tst" : "");
+  box.style.display = "";
+}
+
 function bindGameHeader() {
   const home = document.getElementById("btnHome");
   if (home) {
@@ -3326,6 +3496,11 @@ function loop(now) {
 
   draw(now, dt, flush);
   updateHud(flush, dt);
+  spinHintAcc += dt;
+  if (spinHintAcc >= 120) {
+    spinHintAcc = 0;
+    updateTspinHint();
+  }
   checkMatchEnd();
 }
 
@@ -3703,6 +3878,58 @@ function renderTutorialIfOpen() {
   if (el.tutorialModal.classList.contains("open")) renderTutorial();
 }
 
+/* ---------------------------------------------------------------------------
+ * iOS Safari ignores `user-scalable=no`, so double taps still zoom the page.
+ * Swallow them inside the game screen: a second touchend within ~320ms at
+ * almost the same spot is treated as a tap, not as a zoom gesture.
+ * ------------------------------------------------------------------------- */
+const DOUBLE_TAP_MS = 320;
+const DOUBLE_TAP_SLOP = 28;
+let lastTapAt = 0;
+let lastTapX = 0;
+let lastTapY = 0;
+
+function blockDoubleTapZoom() {
+  document.addEventListener(
+    "touchend",
+    function (ev) {
+      if (!document.body.classList.contains("game-mode")) return;
+      if (ev.target instanceof HTMLInputElement || ev.target instanceof HTMLTextAreaElement) return;
+      if (ev.touches && ev.touches.length > 0) {
+        // pinch in progress
+        lastTapAt = 0;
+        return;
+      }
+      const now = Date.now();
+      const t = (ev.changedTouches && ev.changedTouches[0]) || null;
+      if (!t) return;
+      const isDouble =
+        now - lastTapAt < DOUBLE_TAP_MS &&
+        Math.abs(t.clientX - lastTapX) < DOUBLE_TAP_SLOP &&
+        Math.abs(t.clientY - lastTapY) < DOUBLE_TAP_SLOP;
+      if (isDouble) {
+        ev.preventDefault();
+        lastTapAt = 0;
+        return;
+      }
+      lastTapAt = now;
+      lastTapX = t.clientX;
+      lastTapY = t.clientY;
+    },
+    { passive: false },
+  );
+
+  // iOS also zooms on a double tap even with touch-action set on some versions.
+  document.addEventListener("gesturestart", function (ev) { ev.preventDefault(); });
+  document.addEventListener("gesturechange", function (ev) { ev.preventDefault(); });
+  document.addEventListener("gestureend", function (ev) { ev.preventDefault(); });
+
+  // Multi-finger pinch inside the playfield: stop the whole page from scaling.
+  document.addEventListener("touchmove", function (ev) {
+    if (ev.touches && ev.touches.length > 1) ev.preventDefault();
+  }, { passive: false });
+}
+
 function bindEvents() {
   /* keyboard */
   const keyMap = { ArrowLeft: "L", ArrowRight: "R", ArrowDown: "D" };
@@ -3751,19 +3978,39 @@ function bindEvents() {
   el.touchpad.querySelectorAll("button").forEach((btn) => {
     const key = btn.getAttribute("data-btn");
     const isHoldKey = key === "L" || key === "R" || key === "D";
-    btn.addEventListener("pointerdown", (ev) => {
+    let active = false;
+
+    const down = (ev) => {
       ev.preventDefault();
+      if (active) return;
+      active = true;
       sfx.unlock();
+      btn.classList.add("pressed");
       if (isHoldKey) press(key, true);
       else act(key);
-    });
+    };
     const up = () => {
+      if (!active) return;
+      active = false;
+      btn.classList.remove("pressed");
       if (isHoldKey) press(key, false);
     };
+
+    // Pointer events cover mouse + touch + pen. `pointerdown` fires for every
+    // finger down, so two quick taps on ⟳ give two rotations.
+    btn.addEventListener("pointerdown", down);
     btn.addEventListener("pointerup", up);
     btn.addEventListener("pointerleave", up);
     btn.addEventListener("pointercancel", up);
+    // Safari < 13 has no Pointer Events; fall back to touch events.
+    if (!window.PointerEvent) {
+      btn.addEventListener("touchstart", (ev) => { down(ev); }, { passive: false });
+      btn.addEventListener("touchend", up);
+      btn.addEventListener("touchcancel", up);
+    }
     btn.addEventListener("contextmenu", (ev) => ev.preventDefault());
+    // Stop iOS from treating a quick double tap on a button as a zoom gesture.
+    btn.addEventListener("dblclick", (ev) => ev.preventDefault());
   });
 
   /* playfield gestures */
